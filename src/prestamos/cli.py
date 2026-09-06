@@ -7,10 +7,11 @@ reglas de negocio (eso vive en prestamos.reglas y prestamos.servicios).
 from __future__ import annotations
 
 import argparse
+import getpass
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Iterable
 
 from prestamos import __version__
 from prestamos.auth import ServicioAuth
@@ -84,7 +85,10 @@ def construir_parser() -> argparse.ArgumentParser:
         help="directorio con usuarios.json, equipos.json y solicitudes.json",
     )
     parser.add_argument("--usuario", help="id o correo para autenticar esta ejecucion")
-    parser.add_argument("--contrasena", help="contrasena para autenticar esta ejecucion")
+    parser.add_argument(
+        "--contrasena",
+        help="contrasena opcional; si se omite en subcomandos se pedira sin eco",
+    )
 
     subparsers = parser.add_subparsers(dest="comando")
     subparsers.add_parser(
@@ -106,6 +110,12 @@ def main(argv: list[str] | None = None) -> int:
         inicializar_sentry()
 
         args = construir_parser().parse_args(argv)
+        if args.comando is None and (args.usuario or args.contrasena):
+            raise ErrorAutenticacion(
+                "No indique --usuario ni --contrasena al abrir el menu interactivo.",
+                detalles={"motivo": "credenciales_cli_no_permitidas_en_menu"},
+            )
+
         app = crear_aplicacion(datos_dir=args.datos_dir)
         if args.comando is None:
             registrar_evento("cli_menu_inicio", resultado="ok")
@@ -443,12 +453,17 @@ def _cmd_prestamos_atrasados(args: argparse.Namespace, app: Aplicacion) -> None:
 
 
 def _abrir_sesion_cli(auth: ServicioAuth, args: argparse.Namespace) -> None:
-    if not args.usuario or not args.contrasena:
+    if not args.usuario:
         raise ErrorAutenticacion(
-            "Debe indicar --usuario y --contrasena para ejecutar este comando.",
-            detalles={"motivo": "credenciales_cli_requeridas"},
+            "Debe indicar --usuario para ejecutar este comando.",
+            detalles={"motivo": "usuario_cli_requerido"},
         )
-    auth.iniciar_sesion(args.usuario, args.contrasena)
+    contrasena = (
+        args.contrasena
+        if args.contrasena is not None
+        else getpass.getpass("Contrasena: ")
+    )
+    auth.iniciar_sesion(args.usuario, contrasena)
 
 
 def _rol(valor: str) -> Rol:

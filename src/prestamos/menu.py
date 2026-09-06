@@ -7,11 +7,12 @@ muestra sus resultados o errores de dominio.
 
 from __future__ import annotations
 
+import getpass
 from datetime import date
 from typing import Callable, Protocol
 
 from prestamos.errores import ErrorDominio
-from prestamos.modelos import Equipo, Prestamo, Usuario
+from prestamos.modelos import Equipo, Prestamo
 
 InputFn = Callable[[str], str]
 OutputFn = Callable[[str], None]
@@ -31,36 +32,51 @@ def ejecutar_menu(
     app: AplicacionMenu,
     *,
     input_fn: InputFn = input,
+    password_input_fn: InputFn | None = None,
     output_fn: OutputFn = print,
 ) -> int:
     """Ejecuta el menu interactivo hasta que la persona salga.
 
     Las entradas invalidas se informan y el bucle continua. Si stdin se cierra
     durante una ejecucion no interactiva, se sale con codigo 0: alcanzar EOF en
-    el menu equivale a elegir salir, no a un traceback.
+    el menu equivale a elegir salir, no a un traceback. Ctrl+C tambien equivale
+    a salir limpiamente.
     """
 
-    output_fn("Sistema de prestamo de equipos")
-    while True:
-        _mostrar_menu(output_fn)
-        try:
-            opcion = _pedir(input_fn, "Seleccione una opcion: ")
-        except (EOFError, OSError):
-            output_fn("Saliendo.")
-            return 0
+    if password_input_fn is None:
+        password_input_fn = getpass.getpass
 
-        if opcion == "0":
-            output_fn("Saliendo.")
-            return 0
-        try:
-            _ejecutar_opcion(app, opcion, input_fn=input_fn, output_fn=output_fn)
-        except (EOFError, OSError):
-            output_fn("Saliendo.")
-            return 0
-        except ErrorDominio as exc:
-            output_fn(f"Error: {exc.mensaje}")
-        except ValueError as exc:
-            output_fn(f"Error: {exc}")
+    output_fn("Sistema de prestamo de equipos")
+    try:
+        while True:
+            _mostrar_menu(output_fn)
+            try:
+                opcion = _pedir(input_fn, "Seleccione una opcion: ")
+            except EOFError:
+                output_fn("Saliendo.")
+                return 0
+
+            if opcion == "0":
+                output_fn("Saliendo.")
+                return 0
+            try:
+                _ejecutar_opcion(
+                    app,
+                    opcion,
+                    input_fn=input_fn,
+                    password_input_fn=password_input_fn,
+                    output_fn=output_fn,
+                )
+            except EOFError:
+                output_fn("Saliendo.")
+                return 0
+            except ErrorDominio as exc:
+                output_fn(f"Error: {exc.mensaje}")
+            except ValueError as exc:
+                output_fn(f"Error: {exc}")
+    except KeyboardInterrupt:
+        output_fn("Saliendo.")
+        return 0
 
 
 def _mostrar_menu(output_fn: OutputFn) -> None:
@@ -87,11 +103,12 @@ def _ejecutar_opcion(
     opcion: str,
     *,
     input_fn: InputFn,
+    password_input_fn: InputFn,
     output_fn: OutputFn,
 ) -> None:
     if opcion == "1":
         identificador = _pedir(input_fn, "Usuario o correo: ")
-        contrasena = _pedir(input_fn, "Contrasena: ")
+        contrasena = _pedir(password_input_fn, "Contrasena: ")
         sesion = app.auth.iniciar_sesion(identificador, contrasena)
         output_fn(f"Sesion iniciada: {sesion.usuario.id} ({sesion.usuario.rol.value})")
         return

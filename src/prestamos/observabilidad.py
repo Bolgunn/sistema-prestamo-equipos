@@ -62,6 +62,7 @@ def inicializar_sentry(
             dsn=dsn_resuelto,
             environment=entorno or os.getenv("ENTORNO", "desarrollo"),
             traces_sample_rate=0.0,
+            include_local_variables=False,
         )
     except Exception as exc:  # pragma: no cover - depende de librería externa.
         _sentry_activo = False

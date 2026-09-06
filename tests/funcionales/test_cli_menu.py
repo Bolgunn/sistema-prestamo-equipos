@@ -131,6 +131,102 @@ def test_menu_eof_durante_prompt_interno_sale_con_codigo_cero(ejecutar_cli) -> N
     assert "Traceback" not in resultado.stdout + resultado.stderr
 
 
+def test_menu_keyboardinterrupt_sale_con_codigo_cero(tmp_path: Path) -> None:
+    app = cli.crear_aplicacion(datos_dir=tmp_path)
+    salidas: list[str] = []
+
+    def input_fn(_prompt: str) -> str:
+        raise KeyboardInterrupt
+
+    codigo = menu.ejecutar_menu(app, input_fn=input_fn, output_fn=salidas.append)
+
+    assert codigo == 0
+    assert salidas[-1] == "Saliendo."
+
+
+def test_menu_oserror_durante_operacion_no_se_trata_como_salida_limpia(tmp_path: Path) -> None:
+    app = cli.crear_aplicacion(datos_dir=tmp_path)
+    entradas = iter(["1"])
+    salidas: list[str] = []
+
+    def input_fn(_prompt: str) -> str:
+        try:
+            return next(entradas)
+        except StopIteration as exc:
+            raise OSError("entrada rota") from exc
+
+    with pytest.raises(OSError, match="entrada rota"):
+        menu.ejecutar_menu(
+            app,
+            input_fn=input_fn,
+            password_input_fn=input_fn,
+            output_fn=salidas.append,
+        )
+
+    assert "Saliendo." not in salidas
+
+
+def test_menu_login_usa_getpass_por_defecto_para_contrasena(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    app = cli.crear_aplicacion(datos_dir=tmp_path)
+    usuario = _sembrar_usuario(tmp_path)
+    entradas = iter(["1", usuario.id, "0"])
+    prompts: list[str] = []
+    salidas: list[str] = []
+
+    def password_input_fn(prompt: str) -> str:
+        prompts.append(prompt)
+        return CLAVE
+
+    monkeypatch.setattr(menu.getpass, "getpass", password_input_fn)
+
+    codigo = menu.ejecutar_menu(
+        app,
+        input_fn=lambda _prompt: next(entradas),
+        output_fn=salidas.append,
+    )
+
+    assert codigo == 0
+    assert prompts == ["Contrasena: "]
+    assert "Sesion iniciada: enc-cli (ENCARGADO)" in salidas
+
+
+def test_menu_sin_subcomando_rechaza_credenciales_cli(ejecutar_cli) -> None:
+    resultado = ejecutar_cli("--usuario", "enc-cli", "--contrasena", CLAVE, entrada="0\n")
+
+    assert resultado.returncode == 1
+    assert resultado.stdout.strip() == (
+        "Error: No indique --usuario ni --contrasena al abrir el menu interactivo."
+    )
+    assert resultado.stderr == ""
+    assert "Traceback" not in resultado.stdout + resultado.stderr
+
+
+def test_cli_subcomando_pide_contrasena_segura_si_falta(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = repositorio_usuarios(tmp_path)
+    usuario = _usuario("enc-prompt")
+    repo.guardar(usuario)
+    auth = ServicioAuth(repo)
+    prompts: list[str] = []
+
+    def password_input_fn(prompt: str) -> str:
+        prompts.append(prompt)
+        return CLAVE
+
+    monkeypatch.setattr(cli.getpass, "getpass", password_input_fn)
+    args = SimpleNamespace(usuario=usuario.id, contrasena=None)
+
+    cli._abrir_sesion_cli(auth, args)
+
+    assert prompts == ["Contrasena: "]
+    assert auth.usuario_actual == usuario
+
+
 def test_menu_maneja_entradas_invalidas_sin_romper_sesion(ejecutar_cli, tmp_path: Path) -> None:
     _sembrar_usuario(tmp_path / "datos")
     entrada = "\n".join(
@@ -271,7 +367,12 @@ def test_menu_prestamos_relee_usuario_y_rechaza_sesion_inactiva_rn02(
 
     salidas: list[str] = []
 
-    codigo = menu.ejecutar_menu(app, input_fn=input_fn, output_fn=salidas.append)
+    codigo = menu.ejecutar_menu(
+        app,
+        input_fn=input_fn,
+        password_input_fn=input_fn,
+        output_fn=salidas.append,
+    )
 
     assert codigo == 0
     salida = "\n".join(salidas)
