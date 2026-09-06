@@ -121,6 +121,16 @@ def test_sin_subcomando_abre_menu_interactivo(ejecutar_cli) -> None:
     assert resultado.stderr == ""
 
 
+def test_menu_eof_durante_prompt_interno_sale_con_codigo_cero(ejecutar_cli) -> None:
+    resultado = ejecutar_cli(entrada="1\n")
+
+    assert resultado.returncode == 0
+    assert "Sistema de prestamo de equipos" in resultado.stdout
+    assert "Saliendo." in resultado.stdout
+    assert resultado.stderr == ""
+    assert "Traceback" not in resultado.stdout + resultado.stderr
+
+
 def test_menu_maneja_entradas_invalidas_sin_romper_sesion(ejecutar_cli, tmp_path: Path) -> None:
     _sembrar_usuario(tmp_path / "datos")
     entrada = "\n".join(

@@ -54,6 +54,9 @@ def ejecutar_menu(
             return 0
         try:
             _ejecutar_opcion(app, opcion, input_fn=input_fn, output_fn=output_fn)
+        except (EOFError, OSError):
+            output_fn("Saliendo.")
+            return 0
         except ErrorDominio as exc:
             output_fn(f"Error: {exc.mensaje}")
         except ValueError as exc:
