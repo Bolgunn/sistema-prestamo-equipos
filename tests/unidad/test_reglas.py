@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import inspect
 from dataclasses import replace
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -618,3 +618,293 @@ def test_entrega_y_devolucion_exigen_contexto_para_guardas_propias() -> None:
 
     assert exc_devueltos.value.regla == "RN-17"
     assert exc_devueltos.value.detalles["contexto_requerido"] == "equipos_devueltos"
+
+
+# --------------------------------------------------- Disponibilidad derivada
+
+
+RESERVA_INICIO = date(2026, 9, 14)
+RESERVA_TERMINO = date(2026, 9, 18)
+
+
+def reserva_ajena(
+    *,
+    estado: EstadoPrestamo = EstadoPrestamo.APROBADA,
+    id_prestamo: str = "P-RESERVA",
+) -> Prestamo:
+    """Una reserva aprobada de otra persona sobre EQ-01, del 14 al 18."""
+    return prestamo(
+        id_prestamo=id_prestamo,
+        id_solicitante="sol-2",
+        estado=estado,
+        fecha_inicio=RESERVA_INICIO,
+        fecha_termino=RESERVA_TERMINO,
+        fecha_aprobacion=HOY,
+    )
+
+
+@pytest.mark.parametrize(
+    "inicio, termino, permitida",
+    [
+        # Termina el viernes anterior al lunes en que empieza la reserva.
+        (date(2026, 9, 8), date(2026, 9, 11), True),
+        # Termina *el mismo dia* en que empieza: hay_solapamiento es inclusivo.
+        (date(2026, 9, 8), date(2026, 9, 14), False),
+        # Empieza el lunes siguiente al viernes en que termina la reserva.
+        (date(2026, 9, 21), date(2026, 9, 25), True),
+    ],
+)
+def test_una_reserva_solo_bloquea_su_propia_ventana(
+    inicio: date, termino: date, permitida: bool
+) -> None:
+    """El borde completo del solapamiento, que es toda la regla.
+
+    Un equipo RESERVADO sigue siendo solicitable para cualquier ventana que no
+    solape. Si alguien vuelve a apretar el escalar de RN-05 a "solo
+    DISPONIBLE", los dos casos permitidos fallan de inmediato.
+
+    La regla citada al rechazar depende del momento: al crear se cita RN-05
+    ("solo equipos disponibles pueden ser solicitados") y al aprobar RN-10
+    ("no se puede aprobar si existe solapamiento"), tal como las describe
+    docs/reglas-negocio.md. La comprobacion es la misma en ambos casos.
+    """
+    solicitud = prestamo(fecha_inicio=inicio, fecha_termino=termino)
+    equipos = [equipo(estado=EstadoEquipo.RESERVADO)]
+    existentes = [reserva_ajena()]
+
+    def crear() -> None:
+        validar_transicion(
+            solicitud,
+            EventoTransicion.CREAR_SOLICITUD,
+            usuario(),
+            fecha_actual=HOY,
+            equipos=equipos,
+            prestamos_existentes=existentes,
+        )
+
+    def aprobar() -> None:
+        validar_transicion(
+            solicitud,
+            EventoTransicion.APROBAR_SOLICITUD,
+            usuario("enc-1", Rol.ENCARGADO),
+            fecha_actual=HOY,
+            equipos=equipos,
+            prestamos_existentes=existentes,
+            solicitante=usuario(),
+        )
+
+    if permitida:
+        crear()
+        aprobar()
+        return
+
+    with pytest.raises(ErrorValidacion) as exc_crear:
+        crear()
+    assert exc_crear.value.regla == "RN-05"
+
+    with pytest.raises(ErrorValidacion) as exc_aprobar:
+        aprobar()
+    assert exc_aprobar.value.regla == "RN-10"
+
+
+def test_equipo_prestado_admite_una_reserva_futura_sin_solapamiento() -> None:
+    """Lo mismo que RESERVADO, para el equipo que hoy esta en manos de alguien.
+
+    Un prestamo entregado que termina el 18 no puede impedir una reserva para
+    el 21: el escalar PRESTADO describe hoy, no las proximas tres semanas.
+    """
+    validar_transicion(
+        prestamo(fecha_inicio=date(2026, 9, 21), fecha_termino=date(2026, 9, 25)),
+        EventoTransicion.CREAR_SOLICITUD,
+        usuario(),
+        fecha_actual=HOY,
+        equipos=[equipo(estado=EstadoEquipo.PRESTADO)],
+        prestamos_existentes=[
+            reserva_ajena(estado=EstadoPrestamo.ENTREGADA),
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "estado", [EstadoEquipo.MANTENCION, EstadoEquipo.BAJA]
+)
+def test_mantencion_y_baja_siguen_bloqueando_por_si_solas_con_rn05(
+    estado: EstadoEquipo,
+) -> None:
+    """Los dos unicos estados que quedan como compuerta escalar."""
+    with pytest.raises(ErrorValidacion) as exc:
+        validar_transicion(
+            prestamo(),
+            EventoTransicion.CREAR_SOLICITUD,
+            usuario(),
+            fecha_actual=HOY,
+            equipos=[equipo(estado=estado)],
+            prestamos_existentes=[],
+        )
+
+    assert exc.value.regla == "RN-05"
+    assert exc.value.detalles["estado"] == estado.value
+
+
+def test_estado_por_compromiso_conserva_los_estados_administrativos() -> None:
+    """Una reserva no puede reactivar un equipo dado de baja o en mantencion."""
+    for estado in (EstadoEquipo.MANTENCION, EstadoEquipo.BAJA):
+        derivado = reglas.estado_por_compromiso(
+            equipo(estado=estado),
+            [reserva_ajena()],
+            fecha_actual=HOY,
+        )
+        assert derivado is estado
+
+
+def test_estado_por_compromiso_la_custodia_manda_sobre_la_reserva() -> None:
+    """ENTREGADA/ATRASADA pesan mas que cualquier reserva futura."""
+    entregado = prestamo(
+        id_prestamo="P-ENTREGADO",
+        estado=EstadoPrestamo.ENTREGADA,
+        fecha_entrega=date(2026, 9, 8),
+    )
+
+    assert (
+        reglas.estado_por_compromiso(
+            equipo(), [entregado, reserva_ajena()], fecha_actual=HOY
+        )
+        is EstadoEquipo.PRESTADO
+    )
+    assert (
+        reglas.estado_por_compromiso(equipo(), [reserva_ajena()], fecha_actual=HOY)
+        is EstadoEquipo.RESERVADO
+    )
+    assert (
+        reglas.estado_por_compromiso(equipo(), [], fecha_actual=HOY)
+        is EstadoEquipo.DISPONIBLE
+    )
+
+
+def test_estado_por_compromiso_ignora_las_reservas_vencidas() -> None:
+    """No hay transicion de expiracion: sin esto el equipo queda RESERVADO para siempre."""
+    vencida = reserva_ajena()
+    despues = RESERVA_TERMINO + timedelta(days=1)
+
+    assert (
+        reglas.estado_por_compromiso(equipo(), [vencida], fecha_actual=RESERVA_TERMINO)
+        is EstadoEquipo.RESERVADO
+    )
+    assert (
+        reglas.estado_por_compromiso(equipo(), [vencida], fecha_actual=despues)
+        is EstadoEquipo.DISPONIBLE
+    )
+
+
+def test_estado_por_compromiso_prefiere_el_prestamo_actual_al_persistido() -> None:
+    """El llamador pasa lo que acaba de decidir, no lo que hay en disco.
+
+    Asi el resultado no depende de si la escritura ya aterrizo (ver el orden
+    resolver-antes-de-escribir en los servicios).
+    """
+    persistido = reserva_ajena()
+    cancelado = replace(
+        persistido,
+        estado=EstadoPrestamo.CANCELADA,
+        motivo_cancelacion="Cambio de plan",
+    )
+
+    assert (
+        reglas.estado_por_compromiso(
+            equipo(),
+            [persistido],
+            prestamo_actual=cancelado,
+            fecha_actual=HOY,
+        )
+        is EstadoEquipo.DISPONIBLE
+    )
+
+    nuevo = reserva_ajena(id_prestamo="P-NUEVO")
+    assert (
+        reglas.estado_por_compromiso(
+            equipo(), [], prestamo_actual=nuevo, fecha_actual=HOY
+        )
+        is EstadoEquipo.RESERVADO
+    )
+
+
+def test_estado_por_compromiso_compara_codigos_sin_distinguir_mayusculas() -> None:
+    """Mismo criterio que RN-04 y que equipos._exigir_sin_prestamo_activo."""
+    reserva = replace(reserva_ajena(), equipos=(" eq-01 ",))
+
+    assert (
+        reglas.estado_por_compromiso(equipo("EQ-01"), [reserva], fecha_actual=HOY)
+        is EstadoEquipo.RESERVADO
+    )
+
+
+def test_nadie_aprueba_su_propia_solicitud_con_rn22() -> None:
+    """RN-22.
+
+    Con roles estaticos el caso es inalcanzable -T-01 exige SOLICITANTE y T-02
+    ENCARGADO, y un Usuario tiene un solo rol-, pero `editar_usuario` puede
+    promover a un solicitante y dejarlo aprobando lo que el mismo pidio.
+    """
+    promovido = usuario("sol-1", Rol.ENCARGADO)
+    solicitud = prestamo(estado=EstadoPrestamo.SOLICITADA, id_solicitante="sol-1")
+
+    with pytest.raises(ErrorAutorizacion) as exc:
+        validar_transicion(
+            solicitud,
+            EventoTransicion.APROBAR_SOLICITUD,
+            promovido,
+            fecha_actual=HOY,
+            equipos=[equipo()],
+            prestamos_existentes=[],
+            solicitante=usuario("sol-1"),
+        )
+
+    assert exc.value.regla == "RN-22"
+    assert exc.value.detalles["usuario"] == "sol-1"
+    assert exc.value.detalles["id_solicitante"] == "sol-1"
+
+
+def test_otro_encargado_si_puede_aprobar_la_solicitud() -> None:
+    """RN-22 no debe estorbar el camino normal."""
+    validar_transicion(
+        prestamo(estado=EstadoPrestamo.SOLICITADA, id_solicitante="sol-1"),
+        EventoTransicion.APROBAR_SOLICITUD,
+        usuario("enc-1", Rol.ENCARGADO),
+        fecha_actual=HOY,
+        equipos=[equipo()],
+        prestamos_existentes=[],
+        solicitante=usuario("sol-1"),
+    )
+
+
+def test_rechazar_la_propia_solicitud_sigue_permitido() -> None:
+    """RN-22 cubre solo la aprobacion.
+
+    Rechazar lo propio equivale a cancelarlo, cosa que RN-15 ya permite al
+    solicitante: no hay nada que proteger.
+    """
+    validar_transicion(
+        prestamo(estado=EstadoPrestamo.SOLICITADA, id_solicitante="sol-1"),
+        EventoTransicion.RECHAZAR_SOLICITUD,
+        usuario("sol-1", Rol.ENCARGADO),
+        fecha_actual=HOY,
+        motivo_rechazo="Ya no lo necesito",
+    )
+
+
+def test_rn22_ignora_espacios_alrededor_del_identificador() -> None:
+    """Mismo criterio que la correccion de RN-21: se recortan espacios, no mayusculas."""
+    solicitud = prestamo(estado=EstadoPrestamo.SOLICITADA, id_solicitante="sol-1 ")
+
+    with pytest.raises(ErrorAutorizacion) as exc:
+        validar_transicion(
+            solicitud,
+            EventoTransicion.APROBAR_SOLICITUD,
+            usuario("sol-1", Rol.ENCARGADO),
+            fecha_actual=HOY,
+            equipos=[equipo()],
+            prestamos_existentes=[],
+            solicitante=usuario("sol-1"),
+        )
+
+    assert exc.value.regla == "RN-22"

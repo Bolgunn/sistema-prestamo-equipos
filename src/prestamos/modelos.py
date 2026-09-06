@@ -42,7 +42,19 @@ class Rol(str, Enum):
 
 
 class EstadoEquipo(str, Enum):
-    """Estado operativo del equipo (RN-04, AMB-04)."""
+    """Estado operativo del equipo (RN-04, AMB-04).
+
+    Ojo con leer este campo como "puedo reservar esto?": no lo responde. Una
+    reserva es un rango de fechas y esto es un escalar, asi que `DISPONIBLE` no
+    significa "sin reservas" ni `PRESTADO` significa "no reservable" -un equipo
+    prestado esta semana puede reservarse para dentro de un mes-. Quien
+    necesite esa respuesta debe preguntarle a `reglas.equipo_disponible`, que
+    mira las fechas de `solicitudes.json`.
+
+    Solo `MANTENCION` y `BAJA` bloquean por si solos, porque son hechos
+    atemporales del equipo y no de una reserva (`ESTADOS_EQUIPO_BLOQUEANTES`).
+    El valor se deriva con `reglas.estado_por_compromiso`.
+    """
 
     DISPONIBLE = "DISPONIBLE"
     RESERVADO = "RESERVADO"

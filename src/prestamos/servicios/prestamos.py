@@ -15,7 +15,11 @@ from typing import Callable, Iterable
 
 from prestamos.errores import ErrorAutorizacion, ErrorValidacion
 from prestamos.modelos import Equipo, EstadoEquipo, EstadoPrestamo, Prestamo, Rol, Usuario
-from prestamos.reglas import EventoTransicion, validar_transicion
+from prestamos.reglas import (
+    EventoTransicion,
+    estado_por_compromiso,
+    validar_transicion,
+)
 from prestamos.repositorios.fabricas import repositorio_equipos, repositorio_prestamos
 from prestamos.repositorios.json_repo import RepositorioJson
 
@@ -96,6 +100,7 @@ class ServicioPrestamos:
             equipos_devueltos=devueltos,
         )
         equipos = self._equipos_de(prestamo_a_devolver)
+        existentes = self.repo_prestamos.listar()
 
         actualizado = replace(
             prestamo_a_devolver,
@@ -105,7 +110,7 @@ class ServicioPrestamos:
         if requiere_marcar_atraso:
             self.repo_prestamos.guardar(prestamo_a_devolver)
         self.repo_prestamos.guardar(actualizado)
-        self._marcar_equipos(equipos.values(), EstadoEquipo.DISPONIBLE)
+        self._sincronizar_equipos(equipos.values(), existentes, actualizado, fecha)
         return actualizado
 
     def cancelar(
@@ -113,14 +118,25 @@ class ServicioPrestamos:
         id_prestamo: str,
         usuario: Usuario,
         motivo: str | None,
+        *,
+        fecha_actual: date | None = None,
     ) -> Prestamo:
-        """Registra T-04 o T-05 antes de la entrega, con motivo (RN-15)."""
+        """Registra T-04 o T-05 antes de la entrega, con motivo (RN-15).
+
+        `fecha_actual` es opcional y solo se usa para recalcular el estado de
+        los equipos liberados: una reserva ajena ya vencida no debe dejarlos
+        RESERVADO. Se inyecta por la misma razon que `fecha_entrega` y
+        `fecha_devolucion`, para que las pruebas no dependan del dia en que
+        corran.
+        """
 
         prestamo = self.repo_prestamos.obtener(id_prestamo)
+        hoy = fecha_actual or date.today()
         validar_transicion(
             prestamo,
             EventoTransicion.CANCELAR_SOLICITUD,
             usuario,
+            fecha_actual=hoy,
             motivo_cancelacion=motivo,
         )
         equipos = (
@@ -128,6 +144,7 @@ class ServicioPrestamos:
             if prestamo.estado is EstadoPrestamo.APROBADA
             else {}
         )
+        existentes = self.repo_prestamos.listar()
 
         actualizado = replace(
             prestamo,
@@ -136,7 +153,7 @@ class ServicioPrestamos:
         )
         self.repo_prestamos.guardar(actualizado)
         if prestamo.estado is EstadoPrestamo.APROBADA:
-            self._liberar_reservas(equipos.values())
+            self._sincronizar_equipos(equipos.values(), existentes, actualizado, hoy)
         return actualizado
 
     def marcar_atraso(
@@ -328,10 +345,40 @@ class ServicioPrestamos:
         for equipo in equipos:
             self.repo_equipos.guardar(replace(equipo, estado=estado))
 
-    def _liberar_reservas(self, equipos: Iterable[Equipo]) -> None:
+    def _sincronizar_equipos(
+        self,
+        equipos: Iterable[Equipo],
+        existentes: Iterable[Prestamo],
+        prestamo_actual: Prestamo,
+        hoy: date,
+    ) -> None:
+        """Recalcula el estado de cada equipo desde los compromisos que quedan.
+
+        Reemplaza dos escrituras que decidian a ciegas y se equivocaban en
+        cuanto un equipo tenia mas de un prestamo:
+
+        - la cancelacion escribia `RESERVADO -> DISPONIBLE` aunque otra reserva
+          siguiera viva;
+        - la devolucion escribia `DISPONIBLE` y borraba el `RESERVADO` que otra
+          solicitud aprobada todavia justificaba.
+
+        Ninguna de las dos se notaba mientras nadie escribiera `RESERVADO`. La
+        aprobacion (#11) ya lo escribe.
+
+        `prestamo_actual` es el prestamo que esta operacion acaba de decidir, y
+        se pasa explicitamente para que el resultado no dependa de si la
+        escritura ya aterrizo.
+        """
+        persistidos = list(existentes)
         for equipo in equipos:
-            if equipo.estado is EstadoEquipo.RESERVADO:
-                self.repo_equipos.guardar(replace(equipo, estado=EstadoEquipo.DISPONIBLE))
+            destino = estado_por_compromiso(
+                equipo,
+                persistidos,
+                prestamo_actual=prestamo_actual,
+                fecha_actual=hoy,
+            )
+            if destino is not equipo.estado:
+                self.repo_equipos.guardar(replace(equipo, estado=destino))
 
 
 def crear_servicio_prestamos(
@@ -376,12 +423,14 @@ def cancelar(
     usuario: Usuario,
     motivo: str | None,
     *,
+    fecha_actual: date | None = None,
     datos_dir: str | Path | None = None,
 ) -> Prestamo:
     return crear_servicio_prestamos(datos_dir=datos_dir).cancelar(
         id_prestamo,
         usuario,
         motivo,
+        fecha_actual=fecha_actual,
     )
 
 

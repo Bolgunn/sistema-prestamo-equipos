@@ -4,8 +4,9 @@ Nombres descriptivos y sin etiqueta CP-XX, igual que `test_auth.py` y
 `test_servicio_usuarios.py`; ver DEF-01 (issue #43).
 
 El grupo importante es el de las guardas: comprueban que la baja mira los
-*prestamos* y no `Equipo.estado`, distincion que hoy tiene consecuencias reales
-porque nadie escribe `RESERVADO` todavia (la aprobacion, #11, es un stub).
+*prestamos* y no `Equipo.estado`. La aprobacion ya escribe `RESERVADO` (#11),
+pero la distincion sigue importando: el escalar no puede expresar un rango de
+fechas, asi que un equipo `DISPONIBLE` puede tener reservas futuras.
 """
 
 from __future__ import annotations
@@ -256,10 +257,11 @@ def test_baja_rechazada_por_prestamo_aprobado_aunque_el_equipo_este_disponible(
 ) -> None:
     """La prueba clave del diseno.
 
-    Hoy nadie escribe `RESERVADO` -la aprobacion (#11) es un stub-, asi que un
-    prestamo APROBADA deja su equipo en DISPONIBLE. Una guarda que mirase
-    `Equipo.estado` daria de baja un equipo ya comprometido; preguntar por los
-    prestamos acierta.
+    El equipo esta DISPONIBLE aunque exista un prestamo APROBADA: puede pasar
+    con datos cargados a mano, o cuando la reserva se aprobo sobre un equipo
+    que otra operacion dejo en DISPONIBLE. Una guarda que mirase
+    `Equipo.estado` lo daria de baja igual; preguntar por los prestamos
+    acierta.
     """
     _alta(servicio)
     _prestamo(repo_prestamos, EstadoPrestamo.APROBADA)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -710,3 +710,168 @@ def test_consultas_no_modifican_ni_persisten_estados(
     assert repo_prestamos.obtener("VENCIDO_SIN_MARCAR").estado is EstadoPrestamo.ENTREGADA
     assert [p.a_dict() for p in repo_prestamos.listar()] == prestamos_antes
     assert [e.a_dict() for e in repo_equipos.listar()] == equipos_antes
+
+
+# --------------------------- Varios prestamos sobre el mismo equipo (#11)
+#
+# Todas las pruebas de arriba son un prestamo contra un equipo, y con esa forma
+# "escribir DISPONIBLE a ciegas" y "calcular desde los compromisos que quedan"
+# son indistinguibles. Las de aqui abajo separan las dos cosas.
+
+RESERVA_INICIO = date(2026, 9, 21)
+RESERVA_TERMINO = date(2026, 9, 25)
+
+
+def reserva_futura(**cambios) -> Prestamo:
+    """Una segunda reserva del mismo equipo, sin solapar con las fixtures."""
+    datos = {
+        "id_prestamo": "P-02",
+        "id_solicitante": "sol-2",
+        "estado": EstadoPrestamo.APROBADA,
+        "fecha_inicio": RESERVA_INICIO,
+        "fecha_termino": RESERVA_TERMINO,
+    }
+    datos.update(cambios)
+    return prestamo(**datos)
+
+
+def test_cancelar_no_libera_el_equipo_si_queda_otra_reserva_viva(
+    servicio: ServicioPrestamos,
+    repo_prestamos: RepositorioJson[Prestamo],
+    repo_equipos: RepositorioJson[Equipo],
+) -> None:
+    """La cancelacion escribia DISPONIBLE a ciegas."""
+    repo_prestamos.guardar(prestamo())
+    repo_prestamos.guardar(reserva_futura())
+    repo_equipos.guardar(equipo(estado=EstadoEquipo.RESERVADO))
+
+    servicio.cancelar(
+        "P-01", usuario(), "Cambio de plan", fecha_actual=date(2026, 9, 7)
+    )
+
+    assert repo_equipos.obtener("EQ-01").estado is EstadoEquipo.RESERVADO
+
+
+def test_devolver_deja_el_equipo_reservado_si_hay_una_reserva_pendiente(
+    servicio: ServicioPrestamos,
+    repo_prestamos: RepositorioJson[Prestamo],
+    repo_equipos: RepositorioJson[Equipo],
+) -> None:
+    """La devolucion escribia DISPONIBLE y borraba la reserva de otra persona."""
+    repo_prestamos.guardar(
+        prestamo(estado=EstadoPrestamo.ENTREGADA, fecha_entrega=date(2026, 9, 8))
+    )
+    repo_prestamos.guardar(reserva_futura())
+    repo_equipos.guardar(equipo(estado=EstadoEquipo.PRESTADO))
+
+    servicio.registrar_devolucion(
+        "P-01",
+        usuario("enc-1", Rol.ENCARGADO),
+        fecha_devolucion=date(2026, 9, 10),
+    )
+
+    assert repo_equipos.obtener("EQ-01").estado is EstadoEquipo.RESERVADO
+
+
+def test_cancelar_una_reserva_futura_no_devuelve_al_estante_lo_que_esta_prestado(
+    servicio: ServicioPrestamos,
+    repo_prestamos: RepositorioJson[Prestamo],
+    repo_equipos: RepositorioJson[Equipo],
+) -> None:
+    """La custodia fisica manda sobre la reserva: el equipo sigue en manos de alguien."""
+    repo_prestamos.guardar(
+        prestamo(estado=EstadoPrestamo.ENTREGADA, fecha_entrega=date(2026, 9, 8))
+    )
+    repo_prestamos.guardar(reserva_futura())
+    repo_equipos.guardar(equipo(estado=EstadoEquipo.PRESTADO))
+
+    servicio.cancelar(
+        "P-02",
+        usuario("sol-2"),
+        "Ya no lo necesito",
+        fecha_actual=date(2026, 9, 7),
+    )
+
+    assert repo_equipos.obtener("EQ-01").estado is EstadoEquipo.PRESTADO
+
+
+@pytest.mark.parametrize(
+    "administrativo", [EstadoEquipo.MANTENCION, EstadoEquipo.BAJA]
+)
+def test_la_devolucion_no_resucita_un_equipo_en_mantencion_o_de_baja(
+    servicio: ServicioPrestamos,
+    repo_prestamos: RepositorioJson[Prestamo],
+    repo_equipos: RepositorioJson[Equipo],
+    administrativo: EstadoEquipo,
+) -> None:
+    """El unico caso donde equivocarse seria un defecto de correccion y no cosmetico.
+
+    Se llega aqui con datos editados a mano: `equipos.py` bloquea la baja de un
+    equipo comprometido. Aun asi, devolver no puede reponer al catalogo algo
+    que fue retirado.
+    """
+    repo_prestamos.guardar(
+        prestamo(estado=EstadoPrestamo.ENTREGADA, fecha_entrega=date(2026, 9, 8))
+    )
+    repo_equipos.guardar(equipo(estado=administrativo))
+
+    servicio.registrar_devolucion(
+        "P-01",
+        usuario("enc-1", Rol.ENCARGADO),
+        fecha_devolucion=date(2026, 9, 10),
+    )
+
+    assert repo_equipos.obtener("EQ-01").estado is administrativo
+
+
+def test_una_reserva_vencida_deja_de_retener_el_equipo(
+    servicio: ServicioPrestamos,
+    repo_prestamos: RepositorioJson[Prestamo],
+    repo_equipos: RepositorioJson[Equipo],
+) -> None:
+    """No hay transicion de expiracion: sin esto el equipo queda RESERVADO para siempre."""
+    repo_prestamos.guardar(
+        prestamo(estado=EstadoPrestamo.ENTREGADA, fecha_entrega=date(2026, 9, 8))
+    )
+    repo_prestamos.guardar(reserva_futura())
+    repo_equipos.guardar(equipo(estado=EstadoEquipo.PRESTADO))
+
+    # La reserva ajena terminaba el 25 y nadie la retiro.
+    servicio.registrar_devolucion(
+        "P-01",
+        usuario("enc-1", Rol.ENCARGADO),
+        fecha_devolucion=RESERVA_TERMINO + timedelta(days=1),
+    )
+
+    assert repo_equipos.obtener("EQ-01").estado is EstadoEquipo.DISPONIBLE
+
+
+def test_se_entrega_un_equipo_reservado_por_otra_ventana(
+    servicio: ServicioPrestamos,
+    repo_prestamos: RepositorioJson[Prestamo],
+    repo_equipos: RepositorioJson[Equipo],
+) -> None:
+    """Una reserva futura no bloquea una entrega presente.
+
+    `_validar_entrega` (RN-13) mira el escalar solo para lo que impide la
+    entrega fisica -PRESTADO, MANTENCION, BAJA-, y RESERVADO no es una de esas.
+    Al devolver, la reserva del 21 al 25 vuelve a mandar.
+    """
+    repo_prestamos.guardar(prestamo())
+    repo_prestamos.guardar(reserva_futura())
+    repo_equipos.guardar(equipo(estado=EstadoEquipo.RESERVADO))
+
+    entregado = servicio.registrar_entrega(
+        "P-01", usuario("enc-1", Rol.ENCARGADO), fecha_entrega=date(2026, 9, 8)
+    )
+
+    assert entregado.estado is EstadoPrestamo.ENTREGADA
+    assert repo_equipos.obtener("EQ-01").estado is EstadoEquipo.PRESTADO
+
+    servicio.registrar_devolucion(
+        "P-01",
+        usuario("enc-1", Rol.ENCARGADO),
+        fecha_devolucion=date(2026, 9, 10),
+    )
+
+    assert repo_equipos.obtener("EQ-01").estado is EstadoEquipo.RESERVADO

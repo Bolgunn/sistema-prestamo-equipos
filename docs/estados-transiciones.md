@@ -37,7 +37,7 @@ valores que deban persistirse. Los estados terminales no admiten reapertura.
 | # | Estado origen | Evento | Estado destino | Rol autorizado | Condiciones que impiden la operación |
 | --- | --- | --- | --- | --- | --- |
 | T-01 | Inicio | Crear solicitud | SOLICITADA | Solicitante | Usuario inactivo o no autenticado; lista de equipos vacía; más de 3 equipos; equipo inexistente o no disponible para el período; se supera el límite de 3 equipos activos; fechas inválidas; duración mayor a 5 días hábiles; inicio en el pasado; inicio a más de 20 días laborales; motivo vacío. |
-| T-02 | SOLICITADA | Aprobar solicitud | APROBADA | Encargado | Usuario sin rol encargado; solicitante inactivo; equipo no disponible; solapamiento con otra reserva/préstamo; fechas inválidas o duración mayor a 5 días hábiles; se supera el límite de 3 equipos activos; solicitud ya no está solicitada. |
+| T-02 | SOLICITADA | Aprobar solicitud | APROBADA | Encargado | Usuario sin rol encargado; **el encargado es la misma persona que figura como solicitante (autoaprobación, RN-22)**; solicitante inactivo; equipo no disponible; solapamiento con otra reserva/préstamo; fechas inválidas o duración mayor a 5 días hábiles; se supera el límite de 3 equipos activos; solicitud ya no está solicitada. |
 | T-03 | SOLICITADA | Rechazar solicitud | RECHAZADA | Encargado | Usuario sin rol encargado; solicitud ya no está solicitada; motivo de rechazo vacío. |
 | T-04 | SOLICITADA | Cancelar solicitud | CANCELADA | Solicitante dueño / Encargado | Usuario no autorizado; solicitud ya no está solicitada; motivo de cancelación vacío cuando lo ejecuta encargado. |
 | T-05 | APROBADA | Cancelar solicitud | CANCELADA | Solicitante dueño / Encargado | Usuario no autorizado; solicitud ya fue entregada; fecha/hora de retiro ya registrada. |
@@ -54,7 +54,14 @@ no equivale a pasar la solicitud a RECHAZADA; eso solo ocurre mediante T-03.
 
 Las comprobaciones de disponibilidad y límite se repiten al aprobar: otra
 solicitud puede haber sido aprobada desde la creación. SOLICITADA no reserva
-equipos. El rol «Sistema» de T-07 representa la evaluación temporal de RN-16;
+equipos.
+
+La guarda de autoaprobación (RN-22) aparece solo en T-02 y no en T-03. Con
+roles fijos el caso no se alcanza, porque crear exige Solicitante y aprobar
+exige Encargado; el camino real es un cambio de rol (RN-20) que promueva a
+quien ya tenía una solicitud abierta. No se extiende al rechazo porque
+rechazar la propia solicitud equivale a cancelarla, cosa que RN-15 ya permite
+a la persona solicitante. El rol «Sistema» de T-07 representa la evaluación temporal de RN-16;
 no agrega un tercer rol de usuario ni exige un proceso en segundo plano.
 
 ## 3. Diagrama
@@ -109,7 +116,10 @@ Un equipo se considera disponible para un rango de fechas solicitado solo si se
 cumplen todas estas condiciones:
 
 - El equipo existe.
-- El estado operativo del equipo es `disponible`.
+- El estado operativo del equipo no es `mantención` ni `baja`. Los estados
+  `reservado` y `prestado` **no** bloquean por sí solos: describen el presente
+  del equipo, no las próximas semanas, y quien decide si el período está
+  tomado es la condición de solapamiento de más abajo.
 - El rango solicitado tiene fecha de inicio menor o igual a la fecha de término.
 - La duración no supera 5 días hábiles.
 - La fecha de inicio no está en el pasado.
@@ -169,7 +179,7 @@ casos previstos: aquí se vinculan al contrato, sin declararlos ejecutados.
 | Transición o criterio | Requerimientos | Reglas | Casos previstos |
 | --- | --- | --- | --- |
 | T-01: creación y validación de solicitud | RF-04, RF-05, RF-06, RF-07 | RN-05, RN-06, RN-07, RN-08, RN-09, RN-17 | CP-07 a CP-16, CP-31, CP-32 |
-| T-02: aprobación y revalidación | RF-04, RF-06, RF-07, RF-08 | RN-05, RN-07, RN-08, RN-10, RN-11, RN-12 | CP-07, CP-08, CP-11 a CP-14, CP-17 a CP-22 |
+| T-02: aprobación y revalidación | RF-04, RF-06, RF-07, RF-08 | RN-05, RN-07, RN-08, RN-10, RN-11, RN-12, RN-22 | CP-07, CP-08, CP-11 a CP-14, CP-17 a CP-22 |
 | T-03: rechazo | RF-08 | RN-11, RN-12 | CP-19 a CP-22 |
 | T-04 y T-05: cancelación antes de entrega | RF-11 | RN-15 | CP-27, CP-28 |
 | T-06: entrega de solicitud aprobada | RF-09 | RN-13 | CP-23, CP-24 |
