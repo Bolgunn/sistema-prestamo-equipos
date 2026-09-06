@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import sys
+from types import SimpleNamespace
 
 from prestamos.errores import ErrorValidacion
 from prestamos.logging_conf import configurar_logging, registrar_evento, sanitizar
@@ -70,3 +72,15 @@ def test_CP32_RF13_error_dominio_expone_datos_para_log_sin_traceback():
         "detalles": {"campo": "fecha_inicio"},
     }
     assert sanitizar({"contrasena": "1234"}) == {"contrasena": "***"}
+
+
+def test_sentry_no_captura_variables_locales(tmp_path, monkeypatch):
+    llamadas: list[dict[str, object]] = []
+    sentry_fake = SimpleNamespace(init=lambda **kwargs: llamadas.append(kwargs))
+    monkeypatch.setitem(sys.modules, "sentry_sdk", sentry_fake)
+    monkeypatch.setenv("SENTRY_DSN", "https://public@example.invalid/1")
+
+    activo = inicializar_sentry(ruta_env=tmp_path / ".env")
+
+    assert activo is True
+    assert llamadas[0]["include_local_variables"] is False

@@ -33,24 +33,17 @@ cp .env.example .env   # completar SENTRY_DSN si se desea monitoreo
 ## Ejecucion
 
 ```bash
-# Cargar datos de demostracion
-python -m prestamos init-demo
-
 # Menu interactivo
 python -m prestamos
 
-# Subcomandos
+# Subcomandos disponibles
 python -m prestamos --help
 ```
 
 ## Datos de demostracion
 
-Ver `datos/demo/`. Credenciales de prueba:
-
-| Usuario | Contrasena | Rol |
-| --- | --- | --- |
-| _(por definir)_ | | Encargado |
-| _(por definir)_ | | Solicitante |
+Ver `datos/demo/`. El comando de carga automatica de datos de demostracion
+queda pendiente para el issue #15.
 
 ## Documentacion
 
