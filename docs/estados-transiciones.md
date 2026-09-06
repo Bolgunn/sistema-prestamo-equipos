@@ -109,7 +109,10 @@ Un equipo se considera disponible para un rango de fechas solicitado solo si se
 cumplen todas estas condiciones:
 
 - El equipo existe.
-- El estado operativo del equipo es `disponible`.
+- El estado operativo del equipo no es `mantención` ni `baja`. Los estados
+  `reservado` y `prestado` **no** bloquean por sí solos: describen el presente
+  del equipo, no las próximas semanas, y quien decide si el período está
+  tomado es la condición de solapamiento de más abajo.
 - El rango solicitado tiene fecha de inicio menor o igual a la fecha de término.
 - La duración no supera 5 días hábiles.
 - La fecha de inicio no está en el pasado.

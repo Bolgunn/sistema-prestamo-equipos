@@ -326,12 +326,12 @@ class ServicioEquipos:
         """Rechaza si algun prestamo comprometido nombra al equipo (RN-05).
 
         Se pregunta a `solicitudes.json` y no a `Equipo.estado`, aunque lo
-        segundo seria O(1). El motivo es concreto: hoy nadie escribe
-        `RESERVADO`. La aprobacion, que es quien deberia hacerlo, vive en
-        `servicios/solicitudes.py` y todavia no existe (#11). Es decir, un
-        prestamo `APROBADA` deja su equipo en `DISPONIBLE`, y una guarda basada
-        en el estado daria de baja equipos ya comprometidos. Preguntar por los
-        prestamos es correcto ahora y sigue siendolo despues de #11.
+        segundo seria O(1). La aprobacion ya escribe `RESERVADO` (#11), asi que
+        el estado suele estar al dia, pero sigue sin ser la autoridad: es un
+        escalar y el compromiso es un rango de fechas, de modo que un equipo
+        `DISPONIBLE` puede tener reservas futuras y uno `RESERVADO` puede
+        tenerlas ya vencidas. Preguntar por los prestamos acierta en ambos
+        casos.
 
         `SOLICITADA` no bloquea: se reusa `ESTADOS_DISPONIBILIDAD_BLOQUEADA`, la
         misma definicion de "comprometido" que usa `reglas.equipo_disponible`,
