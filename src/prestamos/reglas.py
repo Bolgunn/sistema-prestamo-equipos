@@ -11,6 +11,7 @@ Contrato trazable:
 - RN-06/RN-07: cantidad solicitada y limite de equipos activos.
 - RN-08/RN-09: duracion maxima y ventana de reserva futura.
 - RN-11/RN-12: aprobacion/rechazo por encargado y estado solicitada.
+- RN-22: nadie aprueba su propia solicitud.
 - RN-13/RN-14/RN-15/RN-16: entrega, devolucion, cancelacion y atraso.
 - RN-17: rechazar operaciones invalidas antes de persistir.
 
@@ -48,6 +49,7 @@ from prestamos.modelos import (
     Prestamo,
     Rol,
     Usuario,
+    normalizar_identificador,
 )
 
 MAX_DIAS_HABILES_PRESTAMO = 5
@@ -580,13 +582,13 @@ def _validar_aprobacion(
     prestamos_existentes: Iterable[Prestamo],
     solicitante: Usuario | None,
 ) -> None:
-    del usuario
     if solicitante is None:
         raise ErrorValidacion(
             "Falta el solicitante para validar usuario activo antes de aprobar (RN-17/RN-02).",
             regla="RN-17",
             detalles={"contexto_requerido": "solicitante", "regla_validada": "RN-02"},
         )
+    _validar_aprobador_distinto_del_solicitante(prestamo, usuario)
     if not solicitante.activo:
         raise ErrorValidacion(
             "El solicitante debe estar activo para aprobar la solicitud (RN-02).",
@@ -598,6 +600,37 @@ def _validar_aprobacion(
         prestamo, equipos, prestamos_existentes, "RN-10", hoy
     )
     _validar_limite_equipos_activos(prestamo, prestamos_existentes)
+
+
+def _validar_aprobador_distinto_del_solicitante(
+    prestamo: Prestamo,
+    usuario: Usuario | None,
+) -> None:
+    """Nadie aprueba su propia solicitud (RN-22).
+
+    Con roles estaticos esto es inalcanzable: `_validar_usuario_operador` exige
+    SOLICITANTE para T-01 y ENCARGADO para T-02, y un `Usuario` tiene un solo
+    rol. El camino real es la mutacion de rol -`servicios/usuarios.editar_usuario`
+    puede promover a un solicitante-, y por eso existe RN-20: los cambios de rol
+    son una operacion soportada.
+
+    Se compara solo el id, sin distinguir el rol: si alguien llega hasta aqui
+    con la solicitud a su nombre, la promocion ya ocurrio.
+    """
+    if usuario is None:
+        return
+    if normalizar_identificador(usuario.id) == normalizar_identificador(
+        prestamo.id_solicitante
+    ):
+        raise ErrorAutorizacion(
+            "Nadie puede aprobar su propia solicitud (RN-22).",
+            regla="RN-22",
+            detalles={
+                "usuario": usuario.id,
+                "id_solicitante": prestamo.id_solicitante,
+                "prestamo": prestamo.id,
+            },
+        )
 
 
 def _validar_cancelacion(

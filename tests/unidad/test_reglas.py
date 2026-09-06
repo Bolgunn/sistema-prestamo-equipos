@@ -836,3 +836,75 @@ def test_estado_por_compromiso_compara_codigos_sin_distinguir_mayusculas() -> No
         reglas.estado_por_compromiso(equipo("EQ-01"), [reserva], fecha_actual=HOY)
         is EstadoEquipo.RESERVADO
     )
+
+
+def test_nadie_aprueba_su_propia_solicitud_con_rn22() -> None:
+    """RN-22.
+
+    Con roles estaticos el caso es inalcanzable -T-01 exige SOLICITANTE y T-02
+    ENCARGADO, y un Usuario tiene un solo rol-, pero `editar_usuario` puede
+    promover a un solicitante y dejarlo aprobando lo que el mismo pidio.
+    """
+    promovido = usuario("sol-1", Rol.ENCARGADO)
+    solicitud = prestamo(estado=EstadoPrestamo.SOLICITADA, id_solicitante="sol-1")
+
+    with pytest.raises(ErrorAutorizacion) as exc:
+        validar_transicion(
+            solicitud,
+            EventoTransicion.APROBAR_SOLICITUD,
+            promovido,
+            fecha_actual=HOY,
+            equipos=[equipo()],
+            prestamos_existentes=[],
+            solicitante=usuario("sol-1"),
+        )
+
+    assert exc.value.regla == "RN-22"
+    assert exc.value.detalles["usuario"] == "sol-1"
+    assert exc.value.detalles["id_solicitante"] == "sol-1"
+
+
+def test_otro_encargado_si_puede_aprobar_la_solicitud() -> None:
+    """RN-22 no debe estorbar el camino normal."""
+    validar_transicion(
+        prestamo(estado=EstadoPrestamo.SOLICITADA, id_solicitante="sol-1"),
+        EventoTransicion.APROBAR_SOLICITUD,
+        usuario("enc-1", Rol.ENCARGADO),
+        fecha_actual=HOY,
+        equipos=[equipo()],
+        prestamos_existentes=[],
+        solicitante=usuario("sol-1"),
+    )
+
+
+def test_rechazar_la_propia_solicitud_sigue_permitido() -> None:
+    """RN-22 cubre solo la aprobacion.
+
+    Rechazar lo propio equivale a cancelarlo, cosa que RN-15 ya permite al
+    solicitante: no hay nada que proteger.
+    """
+    validar_transicion(
+        prestamo(estado=EstadoPrestamo.SOLICITADA, id_solicitante="sol-1"),
+        EventoTransicion.RECHAZAR_SOLICITUD,
+        usuario("sol-1", Rol.ENCARGADO),
+        fecha_actual=HOY,
+        motivo_rechazo="Ya no lo necesito",
+    )
+
+
+def test_rn22_ignora_espacios_alrededor_del_identificador() -> None:
+    """Mismo criterio que la correccion de RN-21: se recortan espacios, no mayusculas."""
+    solicitud = prestamo(estado=EstadoPrestamo.SOLICITADA, id_solicitante="sol-1 ")
+
+    with pytest.raises(ErrorAutorizacion) as exc:
+        validar_transicion(
+            solicitud,
+            EventoTransicion.APROBAR_SOLICITUD,
+            usuario("sol-1", Rol.ENCARGADO),
+            fecha_actual=HOY,
+            equipos=[equipo()],
+            prestamos_existentes=[],
+            solicitante=usuario("sol-1"),
+        )
+
+    assert exc.value.regla == "RN-22"
