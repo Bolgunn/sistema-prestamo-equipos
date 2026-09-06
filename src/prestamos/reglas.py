@@ -3,7 +3,11 @@
 Contrato trazable:
 
 - RN-01/RN-02: roles operativos y usuario activo.
-- RN-05/RN-10: disponibilidad del equipo y solapamiento inclusivo.
+- RN-05/RN-10: disponibilidad del equipo y solapamiento inclusivo. El reparto
+  entre ambas es deliberado: RN-05 mira el escalar ``Equipo.estado`` y solo
+  bloquea lo que esta inutilizable (``ESTADOS_EQUIPO_BLOQUEANTES``); RN-10 mira
+  las fechas. ``estado_por_compromiso`` hace el camino inverso y deriva el
+  escalar desde los prestamos vigentes.
 - RN-06/RN-07: cantidad solicitada y limite de equipos activos.
 - RN-08/RN-09: duracion maxima y ventana de reserva futura.
 - RN-11/RN-12: aprobacion/rechazo por encargado y estado solicitada.
@@ -53,6 +57,25 @@ ESTADOS_DISPONIBILIDAD_BLOQUEADA = frozenset(
         EstadoPrestamo.APROBADA,
         EstadoPrestamo.ENTREGADA,
         EstadoPrestamo.ATRASADA,
+    }
+)
+
+# Estados del equipo que bloquean por si solos, sin mirar fechas (RN-05).
+#
+# `RESERVADO` y `PRESTADO` quedan deliberadamente fuera. `Equipo.estado` es un
+# escalar y una reserva es un *rango de fechas*: un solo campo no puede
+# expresar "reservado la proxima semana, libre esta". Si el escalar bloqueara
+# `RESERVADO`, una reserva del 10 al 14 volveria el equipo irreservable para
+# el 17 al 21, que es exactamente lo contrario de lo que dice RN-10.
+#
+# Asi las dos reglas quedan disjuntas: RN-05 (este escalar) significa "el
+# equipo esta inutilizable, punto"; RN-10 (el bucle de solapamiento) significa
+# "el equipo esta tomado para estas fechas". `MANTENCION` y `BAJA` son los
+# unicos dos estados que son hechos atemporales del equipo y no de una reserva.
+ESTADOS_EQUIPO_BLOQUEANTES = frozenset(
+    {
+        EstadoEquipo.MANTENCION,
+        EstadoEquipo.BAJA,
     }
 )
 
@@ -344,7 +367,7 @@ def equipo_disponible(
 ) -> bool:
     """Determina disponibilidad para un periodo segun RN-05 y RN-10."""
 
-    if equipo.estado is not EstadoEquipo.DISPONIBLE:
+    if equipo.estado in ESTADOS_EQUIPO_BLOQUEANTES:
         return False
     hoy = fecha_actual or date.today()
     try:
@@ -370,6 +393,88 @@ def equipo_disponible(
         if hay_solapamiento(inicio, termino, existente.fecha_inicio, existente.fecha_termino):
             return False
     return True
+
+
+def estado_por_compromiso(
+    equipo: Equipo,
+    prestamos: Iterable[Prestamo],
+    *,
+    prestamo_actual: Prestamo | None = None,
+    fecha_actual: date | None = None,
+) -> EstadoEquipo:
+    """Deriva el estado operativo del equipo desde los prestamos vigentes.
+
+    `Equipo.estado` se *calcula*, no se mantiene. Mantenerlo de forma
+    incremental exigiria que cinco puntos de escritura repartidos en dos
+    servicios respetaran la misma invariante, y asi aparecieron los dos
+    defectos que esta funcion reemplaza: `_liberar_reservas` escribia
+    `DISPONIBLE` a ciegas aunque otra reserva siguiera viva, y la devolucion
+    borraba el `RESERVADO` que otra solicitud aprobada todavia justificaba.
+
+    `prestamo_actual` es el prestamo que la operacion en curso acaba de
+    modificar, y se pasa explicitamente en vez de releerlo del repositorio:
+    asi el resultado no depende de si la escritura ya aterrizo, y la funcion
+    queda pura. Si trae un id que ya esta en `prestamos`, lo reemplaza.
+
+    Precedencia, de mayor a menor:
+
+    1. **Los estados administrativos no se sobrescriben nunca.** `MANTENCION` y
+       `BAJA` se devuelven tal cual. Son las unicas compuertas reales que queda
+       (ver `ESTADOS_EQUIPO_BLOQUEANTES`), y que una aprobacion reactivara en
+       silencio un equipo dado de baja seria un defecto de correccion.
+    2. **La custodia fisica manda sobre la reserva.** `ENTREGADA` o `ATRASADA`
+       significan que el equipo esta en manos de alguien, y eso pesa mas que
+       cualquier reserva futura. La custodia no vence: un `ENTREGADA` con la
+       fecha de termino pasada sigue siendo un equipo que no esta en el
+       estante.
+    3. **Las reservas vencidas dejan de contar.** No existe transicion de
+       expiracion, asi que un `APROBADA` que nadie retiro se quedaria
+       `RESERVADO` para siempre. El prestamo sigue `APROBADA` en los datos:
+       esto solo afecta el valor derivado.
+    """
+
+    if equipo.estado in ESTADOS_EQUIPO_BLOQUEANTES:
+        return equipo.estado
+
+    hoy = fecha_actual or date.today()
+    # Mismo criterio que `equipos._exigir_sin_prestamo_activo`: `Prestamo.equipos`
+    # guarda los codigos como texto suelto y nadie resuelve la referencia, asi
+    # que un `in` exacto dejaria que un prestamo sobre "m-01" no contara para
+    # "M-01", dos codigos que RN-04 considera el mismo equipo.
+    buscado = equipo.codigo.strip().casefold()
+
+    en_custodia = False
+    reservado = False
+    for prestamo in _con_prestamo_actual(prestamos, prestamo_actual):
+        if not any(c.strip().casefold() == buscado for c in prestamo.equipos):
+            continue
+        if prestamo.estado in {EstadoPrestamo.ENTREGADA, EstadoPrestamo.ATRASADA}:
+            en_custodia = True
+        elif prestamo.estado is EstadoPrestamo.APROBADA:
+            if prestamo.fecha_termino >= hoy:
+                reservado = True
+
+    if en_custodia:
+        return EstadoEquipo.PRESTADO
+    if reservado:
+        return EstadoEquipo.RESERVADO
+    return EstadoEquipo.DISPONIBLE
+
+
+def _con_prestamo_actual(
+    prestamos: Iterable[Prestamo],
+    prestamo_actual: Prestamo | None,
+) -> list[Prestamo]:
+    efectivos = list(prestamos)
+    if prestamo_actual is None:
+        return efectivos
+    for indice, existente in enumerate(efectivos):
+        if existente.id == prestamo_actual.id:
+            efectivos[indice] = prestamo_actual
+            break
+    else:
+        efectivos.append(prestamo_actual)
+    return efectivos
 
 
 def _obtener_transicion(prestamo: Prestamo, evento: EventoTransicion) -> Transicion:
@@ -686,7 +791,7 @@ def _validar_equipos_y_disponibilidad(
                 regla="RN-17",
                 detalles={"equipo": codigo},
             )
-        if equipo.estado is not EstadoEquipo.DISPONIBLE:
+        if equipo.estado in ESTADOS_EQUIPO_BLOQUEANTES:
             raise ErrorValidacion(
                 f"El equipo {codigo} no esta disponible (RN-05).",
                 regla="RN-05",
