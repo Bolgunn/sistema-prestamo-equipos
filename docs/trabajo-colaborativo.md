@@ -169,7 +169,7 @@ Todo cambio realizado desde una rama de trabajo hacia `develop` se integra media
    - `CP-XX`
    - `DEF-XX`
 
-4. La matriz de trazabilidad definitiva se completa mediante el issue #23. Mientras ese issue esté pendiente, los identificadores utilizados deben ser consistentes con los documentos de requerimientos, reglas de negocio y casos de prueba existentes.
+4. La matriz de trazabilidad definitiva se completo mediante el issue #23. Los identificadores utilizados deben mantenerse consistentes con los documentos de requerimientos, reglas de negocio y casos de prueba existentes.
 
 5. El otro integrante debe revisar el Pull Request antes de su integración.
 

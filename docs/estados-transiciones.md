@@ -178,14 +178,14 @@ casos previstos: aquí se vinculan al contrato, sin declararlos ejecutados.
 
 | Transición o criterio | Requerimientos | Reglas | Casos previstos |
 | --- | --- | --- | --- |
-| T-01: creación y validación de solicitud | RF-04, RF-05, RF-06, RF-07 | RN-05, RN-06, RN-07, RN-08, RN-09, RN-17 | CP-07 a CP-16, CP-31, CP-32 |
-| T-02: aprobación y revalidación | RF-04, RF-06, RF-07, RF-08 | RN-05, RN-07, RN-08, RN-10, RN-11, RN-12, RN-22 | CP-07, CP-08, CP-11 a CP-14, CP-17 a CP-22 |
-| T-03: rechazo | RF-08 | RN-11, RN-12 | CP-19 a CP-22 |
-| T-04 y T-05: cancelación antes de entrega | RF-11 | RN-15 | CP-27, CP-28 |
-| T-06: entrega de solicitud aprobada | RF-09 | RN-13 | CP-23, CP-24 |
-| T-07: clasificación temporal y atraso | RF-12 | RN-16 | CP-29, CP-30 |
-| T-08 y T-09: devolución | RF-10 | RN-14 | CP-25, CP-26 |
-| Disponibilidad y solapamiento inclusivo | RF-04, RF-08 | RN-05, RN-10 | CP-07, CP-08, CP-17, CP-18 |
+| T-01: creación y validación de solicitud | RF-04, RF-05, RF-06, RF-07 | RN-05, RN-06, RN-07, RN-08, RN-09, RN-17 | CP-09, CP-12, CP-15 y pruebas unitarias de `tests/unidad/test_reglas.py` |
+| T-02: aprobación y revalidación | RF-04, RF-06, RF-07, RF-08 | RN-05, RN-07, RN-08, RN-10, RN-11, RN-12, RN-22 | CP-06, CP-08, CP-11, CP-15, CX01, CX02, CX05 |
+| T-03: rechazo | RF-08 | RN-11, RN-12 | Pruebas unitarias de `tests/unidad/test_servicio_solicitudes.py` |
+| T-04 y T-05: cancelación antes de entrega | RF-11 | RN-15 | CP-04, CP-14 |
+| T-06: entrega de solicitud aprobada | RF-09 | RN-13 | CP-02, CP-15, PC20-04 |
+| T-07: clasificación temporal y atraso | RF-12 | RN-16 | CP-05, CP-13, CP-15 |
+| T-08 y T-09: devolución | RF-10 | RN-14 | CP-03, CP-07, CP-10, CP-15, PC20-01 |
+| Disponibilidad y solapamiento inclusivo | RF-04, RF-08 | RN-05, RN-10 | CP-08, CX02 |
 
 `src/prestamos/reglas.py` deberá validar estados, guardas y disponibilidad con
 este contrato. Los servicios de solicitudes y préstamos deberán aplicar solo

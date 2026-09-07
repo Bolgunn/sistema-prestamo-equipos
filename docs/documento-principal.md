@@ -41,10 +41,9 @@ y los casos CP-01 a CP-15 estan en [casos-de-prueba.md](casos-de-prueba.md). La
 suite cubre casos funcionales, borde, negativos, combinados, escenario completo,
 CLI, observabilidad, datos demo y pruebas cruzadas.
 
-Resultado consolidado existente: `pytest -v` recolecto 303 pruebas y termino con
-`302 passed, 1 xfailed`; el `xfail` corresponde al defecto abierto DEF-02/#47.
-La evidencia literal esta enlazada desde [verificacion-validacion.md](verificacion-validacion.md)
-y en [issue-22-pytest-v.txt](evidencias/verificacion/issue-22-pytest-v.txt).
+Resultado consolidado final: `PATH=.venv/bin:$PATH pytest` recolecto 306 pruebas
+y termino con `306 passed in 24.26s`. DEF-01/#43 y DEF-02/#47 quedan corregidos
+en la rama de cierre final y registrados en [defectos.md](defectos.md).
 
 Evidencias principales:
 
@@ -75,7 +74,7 @@ Evidencia disponible:
 - `tests/funcionales/test_observabilidad.py`: pruebas automatizadas de logs, Sentry sin DSN, errores de dominio y sanitizacion.
 - `tests/funcionales/test_cli_errores.py`: ausencia de traceback en errores de CLI.
 - [sentry-evento-prueba.png](evidencias/validacion/sentry-evento-prueba.png): evidencia visual de un evento real en Sentry.
-- [defectos.md](defectos.md): DEF-02/#47 mantiene abierto que algunas operaciones de prestamos todavia no registran auditoria completa.
+- [defectos.md](defectos.md): DEF-01/#43 y DEF-02/#47 quedan corregidos en la rama de cierre final.
 
 Issue/PR representativo:
 
@@ -208,7 +207,7 @@ Issues destacados:
 - [#26](https://github.com/nonmeeeeeeeeeeeeeee/sistema-prestamo-equipos/issues/26): declaracion de uso de IA.
 - [#27](https://github.com/nonmeeeeeeeeeeeeeee/sistema-prestamo-equipos/issues/27): reflexiones individuales.
 - [#28](https://github.com/nonmeeeeeeeeeeeeeee/sistema-prestamo-equipos/issues/28): README final.
-- [#43](https://github.com/nonmeeeeeeeeeeeeeee/sistema-prestamo-equipos/issues/43) y [#47](https://github.com/nonmeeeeeeeeeeeeeee/sistema-prestamo-equipos/issues/47): defectos abiertos documentados.
+- [#43](https://github.com/nonmeeeeeeeeeeeeeee/sistema-prestamo-equipos/issues/43) y [#47](https://github.com/nonmeeeeeeeeeeeeeee/sistema-prestamo-equipos/issues/47): defectos corregidos y documentados.
 
 PRs destacados:
 
@@ -244,7 +243,5 @@ decisiones mas relevantes para entender la entrega son:
 
 ## Estado de pendientes conocidos
 
-Los pendientes que este documento mantiene visibles son los defectos abiertos registrados en [defectos.md](defectos.md):
-
-- DEF-01/#43: inconsistencia historica de numeracion CP-XX en documentos.
-- DEF-02/#47: falta de logs de auditoria en algunas operaciones de prestamos, reproducida por la prueba cruzada PC20-04.
+No quedan defectos abiertos documentados en [defectos.md](defectos.md) despues de
+la correccion final de DEF-01/#43 y DEF-02/#47 en esta rama.

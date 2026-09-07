@@ -2,18 +2,22 @@
 
 Este servicio orquesta persistencia JSON y motor de reglas. No decide si una
 transicion es valida por su cuenta: antes de guardar cualquier cambio llama a
-``prestamos.reglas.validar_transicion`` con el contexto necesario. Las consultas
-clasifican por RN-16 y aplican visibilidad por rol segun RN-19.
+``prestamos.reglas.validar_transicion`` con el contexto necesario. Las mutaciones
+registran eventos de auditoria por RN-18. Las consultas clasifican por RN-16 y
+aplican visibilidad por rol segun RN-19; no registran eventos para evitar ruido,
+porque solo leen datos y no cambian inventario ni estado de prestamos.
 """
 
 from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date
+import logging
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Any, Callable, Iterable
 
-from prestamos.errores import ErrorAutorizacion, ErrorValidacion
+from prestamos.errores import ErrorAutorizacion, ErrorDominio, ErrorValidacion
+from prestamos.logging_conf import registrar_evento
 from prestamos.modelos import Equipo, EstadoEquipo, EstadoPrestamo, Prestamo, Rol, Usuario
 from prestamos.reglas import (
     EventoTransicion,
@@ -33,9 +37,11 @@ class ServicioPrestamos:
         repo_equipos: RepositorioJson[Equipo] | None = None,
         *,
         datos_dir: str | Path | None = None,
+        logger: logging.Logger | None = None,
     ) -> None:
         self.repo_prestamos = repo_prestamos or repositorio_prestamos(datos_dir)
         self.repo_equipos = repo_equipos or repositorio_equipos(datos_dir)
+        self._logger = logger
 
     def registrar_entrega(
         self,
@@ -46,27 +52,47 @@ class ServicioPrestamos:
     ) -> Prestamo:
         """Registra T-06: APROBADA -> ENTREGADA (RN-13)."""
 
-        prestamo = self.repo_prestamos.obtener(id_prestamo)
+        prestamo: Prestamo | None = None
+        equipos: dict[str, Equipo] = {}
         fecha = fecha_entrega or date.today()
-        equipos = self._equipos_de(prestamo)
+        try:
+            prestamo = self.repo_prestamos.obtener(id_prestamo)
+            equipos = self._equipos_de(prestamo)
 
-        validar_transicion(
-            prestamo,
-            EventoTransicion.REGISTRAR_ENTREGA,
-            encargado,
-            fecha_actual=fecha,
-            fecha_operacion=fecha,
-            equipos=equipos,
-        )
+            validar_transicion(
+                prestamo,
+                EventoTransicion.REGISTRAR_ENTREGA,
+                encargado,
+                fecha_actual=fecha,
+                fecha_operacion=fecha,
+                equipos=equipos,
+            )
 
-        actualizado = replace(
-            prestamo,
-            estado=EstadoPrestamo.ENTREGADA,
-            fecha_entrega=fecha,
-        )
-        self.repo_prestamos.guardar(actualizado)
-        self._marcar_equipos(equipos.values(), EstadoEquipo.PRESTADO)
-        return actualizado
+            actualizado = replace(
+                prestamo,
+                estado=EstadoPrestamo.ENTREGADA,
+                fecha_entrega=fecha,
+            )
+            self.repo_prestamos.guardar(actualizado)
+            self._marcar_equipos(equipos.values(), EstadoEquipo.PRESTADO)
+            self._evento_ok(
+                "prestamo_entrega",
+                actor=encargado,
+                prestamo=actualizado,
+                equipos=equipos,
+                fecha_entrega=fecha.isoformat(),
+            )
+            return actualizado
+        except ErrorDominio as exc:
+            self._evento_error(
+                "prestamo_entrega",
+                actor=encargado,
+                id_prestamo=id_prestamo,
+                prestamo=prestamo,
+                equipos=equipos,
+                error=exc,
+            )
+            raise
 
     def registrar_devolucion(
         self,
@@ -78,40 +104,65 @@ class ServicioPrestamos:
     ) -> Prestamo:
         """Registra T-08 o T-09 y libera equipos al devolver (RN-14/RN-16)."""
 
-        prestamo = self.repo_prestamos.obtener(id_prestamo)
+        prestamo: Prestamo | None = None
+        prestamo_a_devolver: Prestamo | None = None
+        equipos: dict[str, Equipo] = {}
         fecha = fecha_devolucion or date.today()
-        devueltos = tuple(prestamo.equipos if equipos_devueltos is None else equipos_devueltos)
+        devueltos: tuple[str, ...] = ()
+        try:
+            prestamo = self.repo_prestamos.obtener(id_prestamo)
+            devueltos = tuple(prestamo.equipos if equipos_devueltos is None else equipos_devueltos)
 
-        prestamo_a_devolver, requiere_marcar_atraso = self._preparar_atraso_si_corresponde(
-            prestamo, fecha
-        )
-        evento = (
-            EventoTransicion.REGISTRAR_DEVOLUCION_ATRASADA
-            if prestamo_a_devolver.estado is EstadoPrestamo.ATRASADA
-            else EventoTransicion.REGISTRAR_DEVOLUCION
-        )
+            prestamo_a_devolver, requiere_marcar_atraso = self._preparar_atraso_si_corresponde(
+                prestamo, fecha
+            )
+            evento = (
+                EventoTransicion.REGISTRAR_DEVOLUCION_ATRASADA
+                if prestamo_a_devolver.estado is EstadoPrestamo.ATRASADA
+                else EventoTransicion.REGISTRAR_DEVOLUCION
+            )
 
-        validar_transicion(
-            prestamo_a_devolver,
-            evento,
-            encargado,
-            fecha_actual=fecha,
-            fecha_operacion=fecha,
-            equipos_devueltos=devueltos,
-        )
-        equipos = self._equipos_de(prestamo_a_devolver)
-        existentes = self.repo_prestamos.listar()
+            validar_transicion(
+                prestamo_a_devolver,
+                evento,
+                encargado,
+                fecha_actual=fecha,
+                fecha_operacion=fecha,
+                equipos_devueltos=devueltos,
+            )
+            equipos = self._equipos_de(prestamo_a_devolver)
+            existentes = self.repo_prestamos.listar()
 
-        actualizado = replace(
-            prestamo_a_devolver,
-            estado=EstadoPrestamo.DEVUELTA,
-            fecha_devolucion=fecha,
-        )
-        if requiere_marcar_atraso:
-            self.repo_prestamos.guardar(prestamo_a_devolver)
-        self.repo_prestamos.guardar(actualizado)
-        self._sincronizar_equipos(equipos.values(), existentes, actualizado, fecha)
-        return actualizado
+            actualizado = replace(
+                prestamo_a_devolver,
+                estado=EstadoPrestamo.DEVUELTA,
+                fecha_devolucion=fecha,
+            )
+            if requiere_marcar_atraso:
+                self.repo_prestamos.guardar(prestamo_a_devolver)
+            self.repo_prestamos.guardar(actualizado)
+            self._sincronizar_equipos(equipos.values(), existentes, actualizado, fecha)
+            self._evento_ok(
+                "prestamo_devolucion",
+                actor=encargado,
+                prestamo=actualizado,
+                equipos=equipos,
+                fecha_devolucion=fecha.isoformat(),
+                equipos_devueltos=list(devueltos),
+                atraso_intermedio=requiere_marcar_atraso,
+            )
+            return actualizado
+        except ErrorDominio as exc:
+            self._evento_error(
+                "prestamo_devolucion",
+                actor=encargado,
+                id_prestamo=id_prestamo,
+                prestamo=prestamo_a_devolver or prestamo,
+                equipos=equipos,
+                error=exc,
+                equipos_devueltos=list(devueltos),
+            )
+            raise
 
     def cancelar(
         self,
@@ -130,31 +181,52 @@ class ServicioPrestamos:
         corran.
         """
 
-        prestamo = self.repo_prestamos.obtener(id_prestamo)
+        prestamo: Prestamo | None = None
+        equipos: dict[str, Equipo] = {}
         hoy = fecha_actual or date.today()
-        validar_transicion(
-            prestamo,
-            EventoTransicion.CANCELAR_SOLICITUD,
-            usuario,
-            fecha_actual=hoy,
-            motivo_cancelacion=motivo,
-        )
-        equipos = (
-            self._equipos_de(prestamo)
-            if prestamo.estado is EstadoPrestamo.APROBADA
-            else {}
-        )
-        existentes = self.repo_prestamos.listar()
+        try:
+            prestamo = self.repo_prestamos.obtener(id_prestamo)
+            validar_transicion(
+                prestamo,
+                EventoTransicion.CANCELAR_SOLICITUD,
+                usuario,
+                fecha_actual=hoy,
+                motivo_cancelacion=motivo,
+            )
+            equipos = (
+                self._equipos_de(prestamo)
+                if prestamo.estado is EstadoPrestamo.APROBADA
+                else {}
+            )
+            existentes = self.repo_prestamos.listar()
 
-        actualizado = replace(
-            prestamo,
-            estado=EstadoPrestamo.CANCELADA,
-            motivo_cancelacion=motivo,
-        )
-        self.repo_prestamos.guardar(actualizado)
-        if prestamo.estado is EstadoPrestamo.APROBADA:
-            self._sincronizar_equipos(equipos.values(), existentes, actualizado, hoy)
-        return actualizado
+            actualizado = replace(
+                prestamo,
+                estado=EstadoPrestamo.CANCELADA,
+                motivo_cancelacion=motivo,
+            )
+            self.repo_prestamos.guardar(actualizado)
+            if prestamo.estado is EstadoPrestamo.APROBADA:
+                self._sincronizar_equipos(equipos.values(), existentes, actualizado, hoy)
+            self._evento_ok(
+                "prestamo_cancelacion",
+                actor=usuario,
+                prestamo=actualizado,
+                equipos=equipos,
+                motivo_cancelacion=motivo,
+                fecha_actual=hoy.isoformat(),
+            )
+            return actualizado
+        except ErrorDominio as exc:
+            self._evento_error(
+                "prestamo_cancelacion",
+                actor=usuario,
+                id_prestamo=id_prestamo,
+                prestamo=prestamo,
+                equipos=equipos,
+                error=exc,
+            )
+            raise
 
     def marcar_atraso(
         self,
@@ -165,17 +237,34 @@ class ServicioPrestamos:
     ) -> Prestamo:
         """Registra T-07: ENTREGADA -> ATRASADA (RN-16)."""
 
-        prestamo = self.repo_prestamos.obtener(id_prestamo)
+        prestamo: Prestamo | None = None
         fecha = fecha_actual or date.today()
-        validar_transicion(
-            prestamo,
-            EventoTransicion.MARCAR_ATRASO,
-            usuario,
-            fecha_actual=fecha,
-        )
-        actualizado = replace(prestamo, estado=EstadoPrestamo.ATRASADA)
-        self.repo_prestamos.guardar(actualizado)
-        return actualizado
+        try:
+            prestamo = self.repo_prestamos.obtener(id_prestamo)
+            validar_transicion(
+                prestamo,
+                EventoTransicion.MARCAR_ATRASO,
+                usuario,
+                fecha_actual=fecha,
+            )
+            actualizado = replace(prestamo, estado=EstadoPrestamo.ATRASADA)
+            self.repo_prestamos.guardar(actualizado)
+            self._evento_ok(
+                "prestamo_atraso",
+                actor=usuario,
+                prestamo=actualizado,
+                fecha_actual=fecha.isoformat(),
+            )
+            return actualizado
+        except ErrorDominio as exc:
+            self._evento_error(
+                "prestamo_atraso",
+                actor=usuario,
+                id_prestamo=id_prestamo,
+                prestamo=prestamo,
+                error=exc,
+            )
+            raise
 
     def prestamos_futuros(
         self,
@@ -246,6 +335,72 @@ class ServicioPrestamos:
                 )
             ),
         )
+
+
+    def _evento_ok(
+        self,
+        accion: str,
+        *,
+        actor: Usuario | None,
+        prestamo: Prestamo,
+        equipos: dict[str, Equipo] | None = None,
+        **contexto: Any,
+    ) -> None:
+        self._registrar_evento_seguro(
+            accion,
+            actor=actor,
+            resultado="ok",
+            id_prestamo=prestamo.id,
+            id_solicitante=prestamo.id_solicitante,
+            equipos=list((equipos or {}).keys()) or list(prestamo.equipos),
+            estado=prestamo.estado.value,
+            **contexto,
+        )
+
+    def _evento_error(
+        self,
+        accion: str,
+        *,
+        actor: Usuario | None,
+        id_prestamo: str,
+        error: ErrorDominio,
+        prestamo: Prestamo | None = None,
+        equipos: dict[str, Equipo] | None = None,
+        **contexto: Any,
+    ) -> None:
+        self._registrar_evento_seguro(
+            accion,
+            actor=actor,
+            resultado="error",
+            id_prestamo=prestamo.id if prestamo is not None else id_prestamo,
+            id_solicitante=prestamo.id_solicitante if prestamo is not None else None,
+            equipos=list((equipos or {}).keys())
+            or (list(prestamo.equipos) if prestamo is not None else []),
+            estado=prestamo.estado.value if prestamo is not None else None,
+            motivo_error=error.para_log(),
+            **contexto,
+        )
+
+    def _registrar_evento_seguro(
+        self,
+        accion: str,
+        *,
+        actor: Usuario | None,
+        resultado: str,
+        **contexto: Any,
+    ) -> None:
+        try:
+            registrar_evento(
+                accion,
+                usuario=actor.id if actor is not None else None,
+                resultado=resultado,
+                logger=self._logger,
+                **contexto,
+            )
+        except Exception:
+            # La auditoria no debe cambiar el resultado de la operacion ni
+            # reemplazar el ErrorDominio original por un problema del logger.
+            pass
 
     def _preparar_atraso_si_corresponde(
         self,
@@ -384,8 +539,9 @@ class ServicioPrestamos:
 def crear_servicio_prestamos(
     *,
     datos_dir: str | Path | None = None,
+    logger: logging.Logger | None = None,
 ) -> ServicioPrestamos:
-    return ServicioPrestamos(datos_dir=datos_dir)
+    return ServicioPrestamos(datos_dir=datos_dir, logger=logger)
 
 
 def registrar_entrega(

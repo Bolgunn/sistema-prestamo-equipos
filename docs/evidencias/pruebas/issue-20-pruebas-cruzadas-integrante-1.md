@@ -27,7 +27,7 @@ la integracion de #15 en develop, la prueba cruzada automatizada cubre #12,
 | PC20-01 | RF-10 / RN-14 | Intentar devolver solo parte de los equipos de un prestamo entregado. | La devolucion parcial se rechaza, el prestamo sigue ENTREGADA y todos los equipos siguen PRESTADO. |
 | PC20-02 | RF-12 / RN-19 | Consultar atrasados como Solicitante con prestamos propios y ajenos. | El Solicitante ve solo los propios; si filtra por otro usuario recibe ErrorAutorizacion RN-19. |
 | PC20-03 | RF-12 / RN-17 / RNF-01 | Ejecutar el subcomando CLI `prestamos futuros` con filtro por usuario y equipo. | La salida muestra solo el prestamo que cumple ambos filtros y no imprime tracebacks. |
-| PC20-04 | RN-18 | Verificar que registrar entrega deja evidencia de auditoria en logs. | Debe existir un evento de entrega sin contrasenas. Hoy queda XFAIL por DEF-02 / #47. |
+| PC20-04 | RN-18 | Verificar que registrar entrega deja evidencia de auditoria en logs. | Debe existir un evento de entrega sin contrasenas. Tras corregir DEF-02/#47, pasa como regresion normal. |
 | PC20-05 | RF-14 / RNF-03 | Ejecutar `init-demo` y luego una consulta CLI con las credenciales documentadas. | El revisor puede crear datos demo, autenticarse como `enc-demo` y consultar el prestamo atrasado `S-0004`. |
 
 ## Ejecucion
@@ -73,10 +73,15 @@ Resumen:
 
 | ID | Issue | Caso que lo detecto | Severidad | Estado |
 | --- | --- | --- | --- | --- |
-| DEF-02 | #47 | PC20-04 reproduce/confirma el defecto detectado previamente | Media: las entregas, devoluciones y cancelaciones modifican inventario fisico, pero no quedan auditadas pese a RN-18. | Abierto |
+| DEF-02 | #47 | PC20-04 reproduce/confirma el defecto detectado previamente | Media: las entregas, devoluciones y cancelaciones modifican inventario fisico, pero no quedan auditadas pese a RN-18. | Corregido en rama de cierre final |
 
-## Riesgo pendiente
+## Reejecucion tras corregir DEF-02/#47
 
-PC20-05 valida el flujo minimo de revisor sobre #15. Permanece pendiente la
-correccion de DEF-02 / #47 para que PC20-04 deje de ser XFAIL y pase como
-regresion normal.
+Comando ejecutado en la rama de cierre final:
+
+```bash
+PATH=.venv/bin:$PATH pytest tests/cruzadas/test_integrante_1_revisa_integrante_2.py -v
+```
+
+Resultado real: `5 passed in 2.62s`. PC20-04 pasa normalmente como
+regresion. PC20-05 mantiene validado el flujo minimo de revisor sobre #15.
