@@ -38,10 +38,13 @@ revisa casos sobre funcionalidades desarrolladas principalmente por el otro.
 
 ## 4. Ambiente de pruebas
 
-Las pruebas se ejecutan con Python 3.12 y `pytest`, usando el entorno virtual del
-proyecto cuando esta disponible (`PATH=.venv/bin:$PATH`). La configuracion de
-pytest esta en `pyproject.toml`, con `pythonpath = ["src"]` y `testpaths =
-["tests"]`.
+Las pruebas se ejecutan con `pytest` sobre Python 3.11 o superior
+(`requires-python = ">=3.11"` en `pyproject.toml`), usando el entorno virtual del
+proyecto cuando esta disponible. La configuracion de pytest esta en
+`pyproject.toml`, con `pythonpath = ["src"]` y `testpaths = ["tests"]`. La suite
+es independiente del sistema operativo: la evidencia registrada para #24 se
+tomo en Windows con Python 3.14.5, y la cabecera de cada archivo de evidencia
+deja constancia del entorno exacto de esa corrida.
 
 Cada prueba usa `tmp_path` o repositorios inyectados para aislar `usuarios.json`,
 `equipos.json` y `solicitudes.json`. Los tests no escriben en los datos reales
@@ -72,7 +75,8 @@ Criterios de entrada:
 Criterios de salida:
 
 - CP-01 a CP-15 tienen resultado obtenido real, estado y evidencia asociada.
-- La suite completa finaliza sin fallos.
+- La suite completa finaliza sin fallos. Se admiten XFAIL siempre que esten
+  documentados como defecto en `docs/defectos.md` con su issue asociado.
 - La evidencia de ejecucion de `pytest -v` queda guardada en `docs/evidencias/pruebas/`.
 - `git diff --check` no reporta errores de whitespace.
 - Los defectos detectados, si los hubiera, se documentan en `docs/defectos.md` antes de corregirlos.
@@ -141,13 +145,19 @@ Trazabilidad de la tabla a los archivos que la sustentan:
 | Combinacion | CP-13, CP-14 | `combinacion` | `tests/integracion/test_escenario_completo.py` | `issue-19-casos-combinados-escenario.md` |
 | Escenario completo | CP-15 | `escenario` | `tests/integracion/test_escenario_completo.py` | `issue-19-casos-combinados-escenario.md` |
 
-Los 15 casos son los que responden al minimo exigido, no el total de la suite:
-`pytest` ejecuta tambien pruebas unitarias y funcionales adicionales sin etiqueta
-CP-XX. Esa separacion es deliberada y esta anotada en los docstrings de esas
-pruebas (ver DEF-01, issue #43): usan nombres descriptivos, y la etiqueta CP-XX
-queda reservada para los casos que este documento contabiliza.
+Los 15 casos son los que responden al minimo exigido, no el total de la suite.
+Tras integrar #15 y agregar las pruebas cruzadas de #20, `pytest` recolecta 303
+pruebas: 302 quedan en verde y 1 queda como XFAIL documentado por DEF-02 /
+issue #47. Las 288 pruebas restantes cubren modulos, flujos y pruebas cruzadas
+sin etiqueta CP-XX. Esa separacion es deliberada y esta anotada en los docstrings
+de esas pruebas (ver DEF-01, issue #43): usan nombres descriptivos, y la etiqueta
+CP-XX queda reservada para los casos que este documento contabiliza.
 
-Ejecucion completa registrada para #24: `PATH=.venv/bin:$PATH pytest -v` termino con `293 passed in 21.23s`; la salida literal esta en `docs/evidencias/pruebas/issue-24-pytest-v.txt`.
+Ejecucion completa registrada para #24: `pytest -v` termino con
+`302 passed, 1 xfailed in 17.64s`; los 15 casos CP-01 a CP-15 salieron PASSED y
+el unico XFAIL es
+`tests/cruzadas/test_integrante_1_revisa_integrante_2.py::test_PC20_04_RN18_entrega_debe_quedar_en_log_de_auditoria`.
+La salida literal esta en `docs/evidencias/pruebas/issue-24-pytest-v.txt`.
 
 La matriz de trazabilidad sigue pendiente: exige un criterio de aceptacion por
 RF que no forma parte de ninguno de los issues de pruebas.
