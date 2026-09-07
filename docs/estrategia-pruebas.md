@@ -47,11 +47,13 @@ Trazabilidad de la tabla a los archivos que la sustentan:
 | Combinacion | CP-13, CP-14 | `combinacion` | tests/integracion/test_escenario_completo.py | issue-19-casos-combinados-escenario.md |
 | Escenario completo | CP-15 | `escenario` | tests/integracion/test_escenario_completo.py | issue-19-casos-combinados-escenario.md |
 
-Los 15 casos son los que responden al minimo exigido, no el total de la suite:
-`pytest` corre 269 pruebas, y las 254 restantes cubren modulos y flujos sin
-etiqueta CP-XX. Esa separacion es deliberada y esta anotada en los docstrings
-de esas pruebas (ver DEF-01, issue #43): usan nombres descriptivos, y la
-etiqueta CP-XX queda reservada para los casos que este documento contabiliza.
+Los 15 casos son los que responden al minimo exigido, no el total de la suite.
+Tras integrar #15 y agregar las pruebas cruzadas de #20, `pytest` corre 298
+pruebas: 297 quedan en verde y 1 queda como XFAIL documentado por DEF-02 /
+issue #47. Las 283 pruebas restantes cubren modulos, flujos y pruebas cruzadas sin etiqueta
+CP-XX. Esa separacion es deliberada y esta anotada en los docstrings de esas
+pruebas (ver DEF-01, issue #43): usan nombres descriptivos, y la etiqueta CP-XX
+queda reservada para los casos que este documento contabiliza.
 
 La matriz de trazabilidad sigue pendiente: exige un criterio de aceptacion por
 RF que no forma parte de ninguno de los issues de pruebas.

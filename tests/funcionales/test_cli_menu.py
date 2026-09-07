@@ -233,8 +233,9 @@ def test_cli_subcomando_pide_contrasena_segura_si_falta(
     assert auth.usuario_actual == usuario
 
 
-def test_menu_maneja_entradas_invalidas_sin_romper_sesion(ejecutar_cli, tmp_path: Path) -> None:
-    _sembrar_usuario(tmp_path / "datos")
+def test_menu_maneja_entradas_invalidas_sin_romper_sesion(tmp_path: Path) -> None:
+    app = cli.crear_aplicacion(datos_dir=tmp_path)
+    _sembrar_usuario(tmp_path)
     entrada = "\n".join(
         [
             "texto",
@@ -251,15 +252,23 @@ def test_menu_maneja_entradas_invalidas_sin_romper_sesion(ejecutar_cli, tmp_path
             "0",
         ]
     )
+    entradas = iter(f"{entrada}\n".splitlines())
+    salidas: list[str] = []
 
-    resultado = ejecutar_cli(entrada=f"{entrada}\n")
+    codigo = menu.ejecutar_menu(
+        app,
+        input_fn=lambda _prompt: next(entradas),
+        password_input_fn=lambda _prompt: next(entradas),
+        output_fn=salidas.append,
+    )
+    salida = "\n".join(salidas)
 
-    assert resultado.returncode == 0
-    assert "Opcion invalida" in resultado.stdout
-    assert "Fecha invalida" in resultado.stdout
-    assert "Sesion iniciada: enc-cli" in resultado.stdout
-    assert "Sin equipos registrados." in resultado.stdout
-    assert "Traceback" not in resultado.stdout + resultado.stderr
+    assert codigo == 0
+    assert "Opcion invalida" in salida
+    assert "Fecha invalida" in salida
+    assert "Sesion iniciada: enc-cli" in salida
+    assert "Sin equipos registrados." in salida
+    assert "Traceback" not in salida
 
 
 def test_cli_devuelve_codigo_distinto_de_cero_ante_error_de_dominio(
