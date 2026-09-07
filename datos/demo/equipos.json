@@ -1,0 +1,37 @@
+[
+  {
+    "codigo": "EQ-DEMO-01",
+    "nombre": "Notebook Dell Latitude",
+    "tipo": "Notebook",
+    "descripcion": "Equipo de demostracion para pruebas manuales y automatizadas.",
+    "estado": "DISPONIBLE"
+  },
+  {
+    "codigo": "EQ-DEMO-02",
+    "nombre": "Proyector Epson",
+    "tipo": "Proyector",
+    "descripcion": "Equipo de demostracion para pruebas manuales y automatizadas.",
+    "estado": "RESERVADO"
+  },
+  {
+    "codigo": "EQ-DEMO-03",
+    "nombre": "Kit Arduino",
+    "tipo": "Electronica",
+    "descripcion": "Equipo de demostracion para pruebas manuales y automatizadas.",
+    "estado": "PRESTADO"
+  },
+  {
+    "codigo": "EQ-DEMO-04",
+    "nombre": "Camara Sony",
+    "tipo": "Audiovisual",
+    "descripcion": "Equipo de demostracion para pruebas manuales y automatizadas.",
+    "estado": "PRESTADO"
+  },
+  {
+    "codigo": "EQ-DEMO-05",
+    "nombre": "Multimetro Fluke",
+    "tipo": "Instrumentacion",
+    "descripcion": "Equipo de demostracion para pruebas manuales y automatizadas.",
+    "estado": "DISPONIBLE"
+  }
+]
