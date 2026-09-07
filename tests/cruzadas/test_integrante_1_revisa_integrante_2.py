@@ -1,6 +1,6 @@
 """Pruebas cruzadas de integrante 1 sobre funcionalidad de integrante 2.
 
-Casos PC20-01 a PC20-04, disenados desde requerimientos, reglas de negocio y
+Casos PC20-01 a PC20-05, disenados desde requerimientos, reglas de negocio y
 reparto de trabajo documentado antes de revisar la implementacion.
 """
 

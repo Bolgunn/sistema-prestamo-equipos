@@ -73,7 +73,7 @@ Resumen:
 
 | ID | Issue | Caso que lo detecto | Severidad | Estado |
 | --- | --- | --- | --- | --- |
-| DEF-02 | #47 | PC20-04 | Media: las entregas, devoluciones y cancelaciones modifican inventario fisico, pero no quedan auditadas pese a RN-18. | Abierto |
+| DEF-02 | #47 | PC20-04 reproduce/confirma el defecto detectado previamente | Media: las entregas, devoluciones y cancelaciones modifican inventario fisico, pero no quedan auditadas pese a RN-18. | Abierto |
 
 ## Riesgo pendiente
 
