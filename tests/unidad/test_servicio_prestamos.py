@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -72,6 +74,31 @@ def prestamo(
         fecha_entrega=fecha_entrega,
         fecha_devolucion=fecha_devolucion,
     )
+
+
+
+
+def logger_archivo(ruta: Path) -> logging.Logger:
+    logger = logging.getLogger(f"prestamos-test-{ruta}")
+    logger.handlers.clear()
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    handler = logging.FileHandler(ruta, encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(handler)
+    return logger
+
+
+def leer_eventos(ruta: Path) -> list[dict]:
+    return [json.loads(linea) for linea in ruta.read_text(encoding="utf-8").splitlines()]
+
+
+class LoggerQueFalla(logging.Logger):
+    def __init__(self) -> None:
+        super().__init__("prestamos-test-falla")
+
+    def info(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        raise RuntimeError("logger no disponible")
 
 
 @pytest.fixture
@@ -875,3 +902,122 @@ def test_se_entrega_un_equipo_reservado_por_otra_ventana(
     )
 
     assert repo_equipos.obtener("EQ-01").estado is EstadoEquipo.RESERVADO
+
+
+def test_mutaciones_registran_eventos_ok_con_contexto_no_sensible(
+    tmp_path: Path,
+    repo_prestamos: RepositorioJson[Prestamo],
+    repo_equipos: RepositorioJson[Equipo],
+) -> None:
+    log_path = tmp_path / "eventos-prestamos.log"
+    servicio = ServicioPrestamos(repo_prestamos, repo_equipos, logger=logger_archivo(log_path))
+    encargado = usuario("enc-1", Rol.ENCARGADO)
+
+    repo_prestamos.guardar(prestamo(id_prestamo="P-ENTREGA"))
+    repo_equipos.guardar(equipo(estado=EstadoEquipo.RESERVADO))
+    servicio.registrar_entrega("P-ENTREGA", encargado, fecha_entrega=date(2026, 9, 8))
+
+    repo_prestamos.guardar(
+        prestamo(
+            id_prestamo="P-DEV",
+            estado=EstadoPrestamo.ENTREGADA,
+            fecha_entrega=date(2026, 9, 8),
+        )
+    )
+    repo_equipos.guardar(equipo(estado=EstadoEquipo.PRESTADO))
+    servicio.registrar_devolucion("P-DEV", encargado, fecha_devolucion=date(2026, 9, 10))
+
+    repo_prestamos.guardar(prestamo(id_prestamo="P-CAN"))
+    repo_equipos.guardar(equipo(estado=EstadoEquipo.RESERVADO))
+    servicio.cancelar("P-CAN", encargado, "No se usara", fecha_actual=date(2026, 9, 7))
+
+    repo_prestamos.guardar(
+        prestamo(
+            id_prestamo="P-ATR",
+            estado=EstadoPrestamo.ENTREGADA,
+            fecha_entrega=date(2026, 9, 8),
+            fecha_termino=date(2026, 9, 10),
+        )
+    )
+    repo_equipos.guardar(equipo(estado=EstadoEquipo.PRESTADO))
+    servicio.marcar_atraso("P-ATR", usuario=encargado, fecha_actual=date(2026, 9, 11))
+
+    eventos = leer_eventos(log_path)
+    assert [evento["accion"] for evento in eventos] == [
+        "prestamo_entrega",
+        "prestamo_devolucion",
+        "prestamo_cancelacion",
+        "prestamo_atraso",
+    ]
+    assert all(evento["resultado"] == "ok" for evento in eventos)
+    assert all(evento["usuario"] == "enc-1" for evento in eventos)
+    assert [evento["contexto"]["id_prestamo"] for evento in eventos] == [
+        "P-ENTREGA",
+        "P-DEV",
+        "P-CAN",
+        "P-ATR",
+    ]
+    assert all(evento["contexto"]["equipos"] == ["EQ-01"] for evento in eventos)
+    assert "hash_contrasena" not in log_path.read_text(encoding="utf-8")
+    assert "pbkdf2" not in log_path.read_text(encoding="utf-8")
+
+
+def test_error_dominio_en_prestamos_registra_evento_error_sin_secretos(
+    tmp_path: Path,
+    repo_prestamos: RepositorioJson[Prestamo],
+    repo_equipos: RepositorioJson[Equipo],
+) -> None:
+    log_path = tmp_path / "eventos-error.log"
+    servicio = ServicioPrestamos(repo_prestamos, repo_equipos, logger=logger_archivo(log_path))
+    repo_prestamos.guardar(prestamo())
+    repo_equipos.guardar(equipo(estado=EstadoEquipo.RESERVADO))
+
+    with pytest.raises(ErrorAutorizacion):
+        servicio.registrar_entrega(
+            "P-01",
+            usuario("sol-1", Rol.SOLICITANTE),
+            fecha_entrega=date(2026, 9, 8),
+        )
+
+    eventos = leer_eventos(log_path)
+    assert len(eventos) == 1
+    evento = eventos[0]
+    assert evento["accion"] == "prestamo_entrega"
+    assert evento["resultado"] == "error"
+    assert evento["usuario"] == "sol-1"
+    assert evento["contexto"]["id_prestamo"] == "P-01"
+    assert evento["contexto"]["equipos"] == ["EQ-01"]
+    assert evento["contexto"]["motivo_error"]["regla"] == "RN-13"
+    contenido = log_path.read_text(encoding="utf-8")
+    assert "Clave" not in contenido
+    assert "hash_contrasena" not in contenido
+    assert "pbkdf2" not in contenido
+
+
+def test_falla_del_logger_no_rompe_operacion_ni_reemplaza_error_dominio(
+    repo_prestamos: RepositorioJson[Prestamo],
+    repo_equipos: RepositorioJson[Equipo],
+) -> None:
+    servicio = ServicioPrestamos(repo_prestamos, repo_equipos, logger=LoggerQueFalla())
+    repo_prestamos.guardar(prestamo())
+    repo_equipos.guardar(equipo(estado=EstadoEquipo.RESERVADO))
+
+    actualizado = servicio.registrar_entrega(
+        "P-01",
+        usuario("enc-1", Rol.ENCARGADO),
+        fecha_entrega=date(2026, 9, 8),
+    )
+
+    assert actualizado.estado is EstadoPrestamo.ENTREGADA
+
+    repo_prestamos.guardar(prestamo(estado=EstadoPrestamo.SOLICITADA))
+    repo_equipos.guardar(equipo())
+
+    with pytest.raises(TransicionNoPermitida) as exc_info:
+        servicio.registrar_entrega(
+            "P-01",
+            usuario("enc-1", Rol.ENCARGADO),
+            fecha_entrega=date(2026, 9, 8),
+        )
+
+    assert exc_info.value.regla == "RN-13"

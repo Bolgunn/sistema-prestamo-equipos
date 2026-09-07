@@ -19,7 +19,7 @@ Herramientas y versiones:
 | Integrante | Producto | Versión | Modelo | Entorno |
 | --- | --- | --- | --- | --- |
 | Integrante 1 (B. Olguin) | Claude Code | 2.1.260 y 2.1.247 | claude-opus-5 | Aplicación de escritorio (`claude-desktop`) |
-| Integrante 2 (Isaías) | Codex CLI | _por confirmar_ (`codex --version`) | GPT-5.5 | Terminal |
+| Integrante 2 (Isaías) | Codex | codex-cli 0.153.0 | GPT-5.5 High | Terminal |
 
 Uso por actividad. La columna **Uso de IA** distingue tres grados: `asistido`
 (la IA propuso o escribió el artefacto), `redacción asistida` (la decisión fue
@@ -131,9 +131,9 @@ controles**, y se declara además cuál de ellos detectó defectos reales.
    resolver el árbol de decisiones antes de implementar. El control es
    preventivo: reduce el margen de la IA para inventar requisitos, porque las
    ambigüedades se resuelven con una respuesta humana explícita y registrada.
-2. **Suite automatizada.** 303 pruebas (302 pasan, 1 `xfail` estricto) sobre
-   servicios reales y repositorios JSON temporales. Se ejecutan localmente y en
-   integración continua (`.github/workflows/pruebas.yml`) en cada Pull Request.
+2. **Suite automatizada.** La suite se ejecuta sobre servicios reales y
+   repositorios JSON temporales. Se ejecuta localmente y en integración continua
+   (`.github/workflows/pruebas.yml`) en cada Pull Request.
 3. **Revisión por pares en Pull Request.** La integración se hace solo por PR
    (29 hasta la fecha). La revisión humana detectó defectos que la suite no vio;
    el caso más claro es la validación de largo de sal y digest, planteada como
@@ -144,13 +144,11 @@ controles**, y se declara además cuál de ellos detectó defectos reales.
    implementó con Codex CLI a partir de un prompt definido por el Integrante 2,
    que también generó la evidencia y actualizó la documentación.
 
-**Hallazgo principal:** los dos defectos abiertos del proyecto salieron de
-actividades realizadas **sin** IA. DEF-01 salió de la revisión
-documental de reglas contra casos de prueba, y DEF-02 (las mutaciones de
-préstamos no registran los eventos de auditoría que exige RN-18) salió de la
-revisión cruzada del Integrante 1 sobre el código del Integrante 2, y quedó
-fijado con un `xfail(strict=True)` en
-`tests/cruzadas/test_integrante_1_revisa_integrante_2.py`. Ambos están
+**Hallazgo principal:** los dos defectos corregidos al cierre salieron de
+actividades realizadas **sin** IA. DEF-01 salió de la revisión documental de
+reglas contra casos de prueba, y DEF-02 (las mutaciones de préstamos no
+registraban los eventos de auditoría que exige RN-18) salió de la revisión
+cruzada del Integrante 1 sobre el código del Integrante 2. Ambos están
 registrados en `docs/defectos.md` y como issues (#43, #47).
 
 La lectura crítica de esto es incómoda y se declara igual: los controles
