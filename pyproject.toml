@@ -22,4 +22,5 @@ markers = [
     "negativo: caso negativo o con entradas invalidas",
     "combinacion: caso que combina reglas",
     "escenario: escenario completo de punta a punta",
+    "prueba_cruzada: caso disenado para revision cruzada entre integrantes",
 ]
