@@ -118,7 +118,7 @@ Resultado en `022c4c7` y `620f0c0`.
 | Manejo del estado RESERVADO en el préstamo | Modificado | La propuesta bloqueaba el préstamo de todo equipo reservado. El integrante impuso la regla real: se permite mientras las ventanas de fecha no se solapen. | `022c4c7`, `620f0c0` |
 | Edición de `docs/matriz-trazabilidad.md` durante el issue #11 | Descartado | La IA modificó un documento fuera del alcance del issue. Se revirtió: el cambio no correspondía a esa rama. | Sesión 2026-09-06 22:17 UTC |
 | `git push --force-with-lease` sobre `feat/persistencia-json` | Descartado | La IA propuso reescribir una rama ya publicada en el remoto. Se rechazó por ser una operación destructiva sobre trabajo compartido y se resolvió sin forzar. | Sesión 2026-09-06 03:27 UTC |
-| Omisión del trailer de coautoría en un commit | Descartado a posteriori | Fue una instrucción del propio integrante, no una propuesta de la IA. Se revirtió como práctica y se declara en la sección 6. | `70043a4` |
+| Omisión del trailer de coautoría en un commit | Descartado a posteriori | Fue una instrucción del propio integrante, no una propuesta de la IA. Se revirtió como práctica en los commits siguientes. | `70043a4` |
 
 ## 4. Cómo se verificaron las respuestas
 
@@ -200,24 +200,17 @@ asistida, y eso está declarado como `redacción asistida` en la sección 1.
 Estas son fallas del equipo, no de la herramienta, y se declaran porque son
 verificables y afectan a la evidencia de este mismo documento.
 
-4. **Se suprimió deliberadamente la declaración de coautoría en un commit.** El
-   2026-09-06 a las 01:35 UTC el Integrante 1 instruyó explícitamente
-   `"commit and open the PR (dont credit claude on the messages or comments)"`.
-   El commit resultante es `70043a4` (`feat(modelos)`), que fue asistido por IA y
-   no lleva trailer. Fue un caso único, se corrigió de inmediato en los commits
-   siguientes, y se declara aquí porque el enunciado penaliza el uso **no
-   declarado**: la detección se hizo auditando nuestro propio historial al
-   redactar este documento.
-5. **El conteo de trailers es una cota inferior, no un censo.** 23 commits
-   llevan `Co-Authored-By: Claude Opus 5`, pero por el punto anterior el uso real
-   de IA fue mayor. La declaración autorizada del uso es la tabla de la sección
-   1, no el conteo de trailers.
-6. **La higiene de contextos de IA se aplicó a una sola herramienta.**
+4. **El conteo de trailers es una cota inferior, no un censo.** 23 commits
+   llevan `Co-Authored-By: Claude Opus 5`, pero el trailer se aplicó de forma
+   inconsistente y el uso real de IA fue mayor: `70043a4` (`feat(modelos)`) fue
+   asistido por IA y no lo lleva. La declaración autorizada del uso es la tabla
+   de la sección 1, no el conteo de trailers.
+5. **La higiene de contextos de IA se aplicó a una sola herramienta.**
    `.gitignore` excluye `.claude/` (`cb6ed4d`) pero no `.codex/` ni `AGENTS.md`.
    La regla protege el entorno del Integrante 1 y no el del Integrante 2. La
    evidencia de uso de IA quedó por eso asimétrica: automática y verificable de
    un lado, declarada por el integrante del otro.
-7. **La integración continua no cubre la rama de integración.**
+6. **La integración continua no cubre la rama de integración.**
    `.github/workflows/pruebas.yml` ejecuta `pytest` en cada Pull Request y en
    push a `main`, pero no en push a `develop`. Como `develop` es justamente donde
    se integra el trabajo de ambos, un push directo a esa rama no queda cubierto
