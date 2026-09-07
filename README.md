@@ -8,12 +8,16 @@ de un laboratorio universitario.
 
 ## Estado
 
-En construccion. Este README debe quedar completo: siguiendo UNICAMENTE estas
-instrucciones el revisor tiene que poder instalar y ejecutar la aplicacion.
+Entrega final. Siguiendo UNICAMENTE las instrucciones de este README el revisor
+puede instalar, ejecutar la aplicacion y correr la suite de pruebas.
+
+Verificado en limpio el 2026-09-06 sobre Windows 11 + Python 3.14.5: clon nuevo
+del repositorio, entorno virtual nuevo, y los comandos de las secciones
+siguientes ejecutados en orden (302 pruebas pasando, 1 xfail).
 
 ## Tecnologias
 
-- Python 3.11+ (desarrollado sobre 3.14)
+- Python 3.11+ (desarrollado y verificado sobre 3.14)
 - pytest (pruebas)
 - sentry-sdk (monitoreo de errores)
 - Persistencia en archivos JSON (sin base de datos)
@@ -21,22 +25,49 @@ instrucciones el revisor tiene que poder instalar y ejecutar la aplicacion.
 ## Instalacion
 
 ```bash
-git clone https://github.com/<usuario>/sistema-prestamo-equipos.git
+git clone https://github.com/nonmeeeeeeeeeeeeeee/sistema-prestamo-equipos.git
 cd sistema-prestamo-equipos
 python -m venv .venv
-# Windows:  .venv\Scripts\activate
-# Linux/Mac: source .venv/bin/activate
+```
+
+Activar el entorno virtual:
+
+```bash
+# Windows (PowerShell / CMD)
+.venv\Scripts\activate
+```
+
+```bash
+# Linux / macOS
+source .venv/bin/activate
+```
+
+Instalar dependencias y el paquete:
+
+```bash
 pip install -r requirements.txt
-cp .env.example .env   # completar SENTRY_DSN si se desea monitoreo
+pip install -e .          # necesario para poder ejecutar `python -m prestamos`
+cp .env.example .env      # completar SENTRY_DSN solo si se desea monitoreo
+```
+
+El paso `pip install -e .` es obligatorio: el codigo vive en `src/` y sin esa
+instalacion `python -m prestamos` falla con `No module named prestamos`.
+La aplicacion funciona sin `SENTRY_DSN`; en ese caso el monitoreo queda inactivo.
+
+Comprobacion rapida de que la instalacion quedo bien:
+
+```bash
+python -m prestamos --help
 ```
 
 ## Ejecucion
 
-```bash
-# Crear datos de demostracion en datos/demo/
-python -m prestamos init-demo
+Los datos de demostracion ya vienen versionados en `datos/demo/`, asi que se
+puede ejecutar la aplicacion de inmediato. `init-demo` solo hace falta si se
+quieren regenerar.
 
-# Si ya existen y quieres regenerarlos explicitamente
+```bash
+# Regenerar los datos de demostracion en datos/demo/
 python -m prestamos init-demo --force
 
 # Menu interactivo usando los datos demo
@@ -46,6 +77,10 @@ python -m prestamos --datos-dir datos/demo
 python -m prestamos --help
 ```
 
+En el menu interactivo se elige `1. Iniciar sesion`, se ingresa un usuario de la
+tabla de credenciales y luego la contrasena (que no se muestra en pantalla).
+`0. Salir` termina la aplicacion.
+
 Para subcomandos autenticados puedes omitir `--contrasena`; la CLI la pedira
 sin eco en pantalla:
 
@@ -54,19 +89,35 @@ python -m prestamos --datos-dir datos/demo --usuario enc-demo equipos listar
 python -m prestamos --datos-dir datos/demo --usuario enc-demo prestamos atrasados --fecha 2026-09-10
 ```
 
+Salida esperada del primer comando:
+
+```
+EQ-DEMO-01 | DISPONIBLE | Notebook Dell Latitude
+EQ-DEMO-02 | RESERVADO | Proyector Epson
+EQ-DEMO-03 | PRESTADO | Kit Arduino
+EQ-DEMO-04 | PRESTADO | Camara Sony
+EQ-DEMO-05 | DISPONIBLE | Multimetro Fluke
+```
+
+Salida esperada del segundo:
+
+```
+S-0004 | ATRASADA | sol-demo-2 | EQ-DEMO-04 | 2026-08-25 -> 2026-08-27
+```
+
 ## Datos de demostracion
 
 Ver `datos/demo/`. El dataset representa el estado del laboratorio al
 `2026-09-10`: contiene usuarios, equipos y solicitudes/prestamos en estados
 `SOLICITADA`, `APROBADA`, `ENTREGADA`, `ATRASADA` y `DEVUELTA`.
 
-Credenciales ficticias de demostracion:
+Credenciales ficticias de demostracion (solo para el dataset demo):
 
-| Usuario | Contrasena | Rol |
-| --- | --- | --- |
-| `enc-demo` | `DemoEncargado2026!` | Encargado |
-| `sol-demo` | `DemoSolicitante2026!` | Solicitante |
-| `sol-demo-2` | `DemoSolicitante2026!` | Solicitante |
+| Usuario | Contrasena | Rol | Para que sirve |
+| --- | --- | --- | --- |
+| `enc-demo` | `DemoEncargado2026!` | Encargado | Aprueba/rechaza solicitudes, registra entregas y devoluciones, consulta atrasados |
+| `sol-demo` | `DemoSolicitante2026!` | Solicitante | Crea solicitudes y consulta sus propios prestamos |
+| `sol-demo-2` | `DemoSolicitante2026!` | Solicitante | Segundo solicitante; es el dueno del prestamo atrasado `S-0004` |
 
 ## Documentacion
 
@@ -84,19 +135,28 @@ Credenciales ficticias de demostracion:
 | [docs/trabajo-colaborativo.md](docs/trabajo-colaborativo.md) | Flujo Git, ramas, PRs, reparto |
 | [docs/uso-ia.md](docs/uso-ia.md) | Declaracion de uso de IA |
 | [docs/reflexiones/](docs/reflexiones/) | Reflexiones individuales |
+| [docs/evidencias/](docs/evidencias/) | Evidencias de ejecucion de pruebas, V y V |
 
 ## Pruebas
 
 ```bash
-pytest -v
-# Con evidencia en archivo:
-pytest -v | tee docs/evidencias/pruebas/ejecucion-pytest.txt
+pytest
+```
+
+Resultado esperado: `302 passed, 1 xfailed`.
+
+La evidencia de la ejecucion esta guardada en
+[docs/evidencias/pruebas/issue-24-pytest-v.txt](docs/evidencias/pruebas/issue-24-pytest-v.txt).
+Para regenerarla:
+
+```bash
+pytest -v > docs/evidencias/pruebas/issue-24-pytest-v.txt
 ```
 
 ## Autores
 
-- Benjamin Olguin- @nonmeeeeeeeeeeeeeee
-- Isaias Carte @IsaiasACF
+- Benjamin Olguin - [@nonmeeeeeeeeeeeeeee](https://github.com/nonmeeeeeeeeeeeeeee)
+- Isaias Carte - [@IsaiasACF](https://github.com/IsaiasACF)
 
 ## Licencia
 
