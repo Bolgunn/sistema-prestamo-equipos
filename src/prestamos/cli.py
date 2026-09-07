@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Iterable
 
 from prestamos import __version__
+from prestamos.demo import inicializar_datos_demo
 from prestamos.auth import ServicioAuth
 from prestamos.errores import ErrorAutenticacion, ErrorDominio
 from prestamos.logging_conf import configurar_logging, registrar_evento
@@ -95,6 +96,17 @@ def construir_parser() -> argparse.ArgumentParser:
         "probar-sentry",
         help="envia un evento de prueba a Sentry si SENTRY_DSN esta configurado",
     ).set_defaults(func=_cmd_probar_sentry)
+
+    init_demo = subparsers.add_parser(
+        "init-demo",
+        help="crea datos de demostracion en datos/demo o en --datos-dir",
+    )
+    init_demo.add_argument(
+        "--force",
+        action="store_true",
+        help="regenera los datos demo sobrescribiendo usuarios/equipos/solicitudes",
+    )
+    init_demo.set_defaults(func=_cmd_init_demo)
 
     _agregar_comandos_usuarios(subparsers)
     _agregar_comandos_equipos(subparsers)
@@ -264,6 +276,13 @@ def _agregar_comandos_prestamos(subparsers: argparse._SubParsersAction) -> None:
         consulta.add_argument("--id-usuario")
         consulta.add_argument("--codigo-equipo")
         consulta.set_defaults(func=funcion, requiere_auth=True)
+
+
+def _cmd_init_demo(args: argparse.Namespace, app: Aplicacion) -> int:
+    del app
+    resultado = inicializar_datos_demo(args.datos_dir, sobrescribir=args.force)
+    print(resultado.mensaje)
+    return 0
 
 
 def _cmd_probar_sentry(args: argparse.Namespace, app: Aplicacion) -> int:

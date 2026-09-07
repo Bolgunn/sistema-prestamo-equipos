@@ -1,0 +1,26 @@
+[
+  {
+    "id": "enc-demo",
+    "nombre": "Encargada Demo",
+    "correo": "enc.demo@usm.cl",
+    "rol": "ENCARGADO",
+    "activo": true,
+    "hash_contrasena": "pbkdf2_sha256$200000$60b75b709980017a28e94a7dbf65aa38$402de414d67d9cdc508bd2838c15f3f469c6add60ba7e7876d3819bb00ac9bed"
+  },
+  {
+    "id": "sol-demo",
+    "nombre": "Solicitante Demo",
+    "correo": "sol.demo@usm.cl",
+    "rol": "SOLICITANTE",
+    "activo": true,
+    "hash_contrasena": "pbkdf2_sha256$200000$950ff2d6080e6c83fbbe238c53458aab$663ba26f4854f511b6eba03f7176762df193213256036ec2c225f9b4180842db"
+  },
+  {
+    "id": "sol-demo-2",
+    "nombre": "Solicitante Alterno Demo",
+    "correo": "sol.demo2@usm.cl",
+    "rol": "SOLICITANTE",
+    "activo": true,
+    "hash_contrasena": "pbkdf2_sha256$200000$014f0ed8124206fede17e0f2a499c7bb$e040fecbce3b14db422942d0b5557c3dd4c08f42d9234e2963342b192f972ff5"
+  }
+]

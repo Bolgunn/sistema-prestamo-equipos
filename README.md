@@ -33,17 +33,40 @@ cp .env.example .env   # completar SENTRY_DSN si se desea monitoreo
 ## Ejecucion
 
 ```bash
-# Menu interactivo
-python -m prestamos
+# Crear datos de demostracion en datos/demo/
+python -m prestamos init-demo
+
+# Si ya existen y quieres regenerarlos explicitamente
+python -m prestamos init-demo --force
+
+# Menu interactivo usando los datos demo
+python -m prestamos --datos-dir datos/demo
 
 # Subcomandos disponibles
 python -m prestamos --help
 ```
 
+Para subcomandos autenticados puedes omitir `--contrasena`; la CLI la pedira
+sin eco en pantalla:
+
+```bash
+python -m prestamos --datos-dir datos/demo --usuario enc-demo equipos listar
+python -m prestamos --datos-dir datos/demo --usuario enc-demo prestamos atrasados --fecha 2026-09-10
+```
+
 ## Datos de demostracion
 
-Ver `datos/demo/`. El comando de carga automatica de datos de demostracion
-queda pendiente para el issue #15.
+Ver `datos/demo/`. El dataset representa el estado del laboratorio al
+`2026-09-10`: contiene usuarios, equipos y solicitudes/prestamos en estados
+`SOLICITADA`, `APROBADA`, `ENTREGADA`, `ATRASADA` y `DEVUELTA`.
+
+Credenciales ficticias de demostracion:
+
+| Usuario | Contrasena | Rol |
+| --- | --- | --- |
+| `enc-demo` | `DemoEncargado2026!` | Encargado |
+| `sol-demo` | `DemoSolicitante2026!` | Solicitante |
+| `sol-demo-2` | `DemoSolicitante2026!` | Solicitante |
 
 ## Documentacion
 

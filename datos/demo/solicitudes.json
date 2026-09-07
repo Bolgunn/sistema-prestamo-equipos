@@ -1,0 +1,87 @@
+[
+  {
+    "id": "S-0001",
+    "id_solicitante": "sol-demo",
+    "equipos": [
+      "EQ-DEMO-01"
+    ],
+    "motivo": "Reserva pendiente para revisar el flujo de aprobacion.",
+    "estado": "SOLICITADA",
+    "fecha_solicitud": "2026-09-07",
+    "fecha_inicio": "2026-09-28",
+    "fecha_termino": "2026-09-30",
+    "fecha_aprobacion": null,
+    "fecha_entrega": null,
+    "fecha_devolucion": null,
+    "motivo_rechazo": null,
+    "motivo_cancelacion": null
+  },
+  {
+    "id": "S-0002",
+    "id_solicitante": "sol-demo",
+    "equipos": [
+      "EQ-DEMO-02"
+    ],
+    "motivo": "Reserva aprobada para una presentacion de laboratorio.",
+    "estado": "APROBADA",
+    "fecha_solicitud": "2026-09-07",
+    "fecha_inicio": "2026-09-14",
+    "fecha_termino": "2026-09-16",
+    "fecha_aprobacion": "2026-09-08",
+    "fecha_entrega": null,
+    "fecha_devolucion": null,
+    "motivo_rechazo": null,
+    "motivo_cancelacion": null
+  },
+  {
+    "id": "S-0003",
+    "id_solicitante": "sol-demo",
+    "equipos": [
+      "EQ-DEMO-03"
+    ],
+    "motivo": "Prestamo entregado para practica de electronica.",
+    "estado": "ENTREGADA",
+    "fecha_solicitud": "2026-09-07",
+    "fecha_inicio": "2026-09-09",
+    "fecha_termino": "2026-09-11",
+    "fecha_aprobacion": "2026-09-08",
+    "fecha_entrega": "2026-09-09",
+    "fecha_devolucion": null,
+    "motivo_rechazo": null,
+    "motivo_cancelacion": null
+  },
+  {
+    "id": "S-0004",
+    "id_solicitante": "sol-demo-2",
+    "equipos": [
+      "EQ-DEMO-04"
+    ],
+    "motivo": "Prestamo atrasado para probar consultas y devolucion tardia.",
+    "estado": "ATRASADA",
+    "fecha_solicitud": "2026-08-24",
+    "fecha_inicio": "2026-08-25",
+    "fecha_termino": "2026-08-27",
+    "fecha_aprobacion": "2026-08-25",
+    "fecha_entrega": "2026-08-25",
+    "fecha_devolucion": null,
+    "motivo_rechazo": null,
+    "motivo_cancelacion": null
+  },
+  {
+    "id": "S-0005",
+    "id_solicitante": "sol-demo-2",
+    "equipos": [
+      "EQ-DEMO-05"
+    ],
+    "motivo": "Prestamo ya devuelto para revisar historial cerrado.",
+    "estado": "DEVUELTA",
+    "fecha_solicitud": "2026-09-07",
+    "fecha_inicio": "2026-09-09",
+    "fecha_termino": "2026-09-10",
+    "fecha_aprobacion": "2026-09-08",
+    "fecha_entrega": "2026-09-09",
+    "fecha_devolucion": "2026-09-10",
+    "motivo_rechazo": null,
+    "motivo_cancelacion": null
+  }
+]
