@@ -45,7 +45,8 @@ humana y la IA redactó el texto que la documenta) y `no usado`.
 | Codex CLI | Pruebas funcionales y de borde (CP-01 a CP-09) | 2 | asistido | `538c476`, `4573cc9` |
 | Codex CLI | Formalización de `develop` y reglas de commits/PR | 2 | redacción asistida | `e9265a9`, `e99b773` |
 | Ninguna | Decisiones de proceso (flujo Git, reparto del trabajo, alcance de issues) | 1 y 2 | **no usado** | ver sección 5 |
-| Ninguna | Revisión cruzada de la funcionalidad del compañero (#20, #21) | 1 y 2 | **no usado** | `c441596`, `79052c9`, `6593fe4` |
+| Ninguna | Revisión cruzada de la funcionalidad del Integrante 2 (#20) | 1 | **no usado** | `c441596`, `79052c9` |
+| Codex CLI | Revisión cruzada de la funcionalidad del Integrante 1 (#21) | 2 | asistido | `6593fe4` |
 | Ninguna | Exclusión de contextos de IA del control de versiones | 1 | **no usado** | `cb6ed4d` |
 
 Los commits del Integrante 1 asistidos por IA llevan el trailer
@@ -137,12 +138,14 @@ controles**, y se declara además cuál de ellos detectó defectos reales.
    (29 hasta la fecha). La revisión humana detectó defectos que la suite no vio;
    el caso más claro es la validación de largo de sal y digest, planteada como
    comentario de PR y corregida en `64fd18e`.
-4. **Pruebas cruzadas sin IA.** En los issues #20 y #21 cada integrante probó la
-   funcionalidad del otro escribiendo casos nuevos e independientes, sin
-   asistencia de IA.
+4. **Pruebas cruzadas.** En los issues #20 y #21 cada integrante probó la
+   funcionalidad del otro escribiendo casos nuevos e independientes. El grado de
+   asistencia no fue el mismo en ambos: el #20 se escribió sin IA, y el #21 se
+   implementó con Codex CLI a partir de un prompt definido por el Integrante 2,
+   que también generó la evidencia y actualizó la documentación.
 
-**Hallazgo principal:** las dos actividades realizadas **sin** IA son las que
-encontraron los defectos abiertos del proyecto. DEF-01 salió de la revisión
+**Hallazgo principal:** los dos defectos abiertos del proyecto salieron de
+actividades realizadas **sin** IA. DEF-01 salió de la revisión
 documental de reglas contra casos de prueba, y DEF-02 (las mutaciones de
 préstamos no registran los eventos de auditoría que exige RN-18) salió de la
 revisión cruzada del Integrante 1 sobre el código del Integrante 2, y quedó
@@ -173,7 +176,9 @@ asistida, y eso está declarado como `redacción asistida` en la sección 1.
   reversibilidad de la baja, la insensibilidad a mayúsculas de `id` y `correo`,
   y la prohibición de que un encargado apruebe su propia solicitud (RN-22).
 - **Juicios de la revisión cruzada** (#20 y #21): qué probar del módulo del
-  compañero, qué considerar defecto y con qué severidad.
+  compañero, qué considerar defecto y con qué severidad. En el #21 la
+  implementación fue asistida, pero el criterio de qué revisar lo definió el
+  Integrante 2 en el prompt; en el #20 no hubo asistencia.
 - **Rechazo de operaciones riesgosas**, en particular el `push --force` sobre
   una rama compartida (sección 3).
 
@@ -207,7 +212,11 @@ verificables y afectan a la evidencia de este mismo documento.
    de la sección 1, no el conteo de trailers.
 5. **La higiene de contextos de IA se aplicó a una sola herramienta.**
    `.gitignore` excluye `.claude/` (`cb6ed4d`) pero no `.codex/` ni `AGENTS.md`.
-   La regla protege el entorno del Integrante 1 y no el del Integrante 2. La
+   La regla protege el entorno del Integrante 1 y no el del Integrante 2. El
+   efecto de esa asimetría se hizo visible al redactar este documento: una
+   primera versión daba el issue #21 como realizado sin IA, y la corrección vino
+   de la declaración del propio Integrante 2 en la revisión del Pull Request, no
+   del repositorio, donde ese uso no dejaba ninguna marca. La
    evidencia de uso de IA quedó por eso asimétrica: automática y verificable de
    un lado, declarada por el integrante del otro.
 6. **La integración continua no cubre la rama de integración.**
