@@ -103,10 +103,16 @@ def test_help_lista_subcomandos_y_no_expone_encargado_inicial(ejecutar_cli) -> N
     resultado = ejecutar_cli("--help")
 
     assert resultado.returncode == 0
-    for subcomando in ("probar-sentry", "usuarios", "equipos", "solicitudes", "prestamos"):
+    for subcomando in (
+        "init-demo",
+        "probar-sentry",
+        "usuarios",
+        "equipos",
+        "solicitudes",
+        "prestamos",
+    ):
         assert subcomando in resultado.stdout
     assert "crear_encargado_inicial" not in resultado.stdout
-    assert "init-demo" not in resultado.stdout
     assert resultado.stderr == ""
 
 
