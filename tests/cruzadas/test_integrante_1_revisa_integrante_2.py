@@ -246,7 +246,6 @@ def test_PC20_03_RF12_cli_futuros_filtra_por_usuario_y_equipo(tmp_path: Path) ->
 
 
 @pytest.mark.prueba_cruzada
-@pytest.mark.xfail(strict=True, reason="DEF-02 / #47: ServicioPrestamos no registra eventos RN-18")
 def test_PC20_04_RN18_entrega_debe_quedar_en_log_de_auditoria(
     tmp_path: Path,
 ) -> None:
@@ -261,7 +260,11 @@ def test_PC20_04_RN18_entrega_debe_quedar_en_log_de_auditoria(
     repo_equipos.guardar(_equipo("EQ-PC20-01", EstadoEquipo.RESERVADO))
 
     log_path = tmp_path / "auditoria.log"
-    configurar_logging(log_path)
+    servicio = ServicioPrestamos(
+        repo_prestamos,
+        repo_equipos,
+        logger=configurar_logging(log_path),
+    )
 
     servicio.registrar_entrega(
         "P-PC20-LOG",

@@ -75,8 +75,7 @@ Criterios de entrada:
 Criterios de salida:
 
 - CP-01 a CP-15 tienen resultado obtenido real, estado y evidencia asociada.
-- La suite completa finaliza sin fallos. Se admiten XFAIL siempre que esten
-  documentados como defecto en `docs/defectos.md` con su issue asociado.
+- La suite completa finaliza sin fallos y sin fallas esperadas asociadas a defectos abiertos.
 - La evidencia de ejecucion de `pytest -v` queda guardada en `docs/evidencias/pruebas/`.
 - `git diff --check` no reporta errores de whitespace.
 - Los defectos detectados, si los hubiera, se documentan en `docs/defectos.md` antes de corregirlos.
@@ -146,18 +145,18 @@ Trazabilidad de la tabla a los archivos que la sustentan:
 | Escenario completo | CP-15 | `escenario` | `tests/integracion/test_escenario_completo.py` | `issue-19-casos-combinados-escenario.md` |
 
 Los 15 casos son los que responden al minimo exigido, no el total de la suite.
-Tras integrar #15 y agregar las pruebas cruzadas de #20, `pytest` recolecta 303
-pruebas: 302 quedan en verde y 1 queda como XFAIL documentado por DEF-02 /
-issue #47. Las 288 pruebas restantes cubren modulos, flujos y pruebas cruzadas
-sin etiqueta CP-XX. Esa separacion es deliberada y esta anotada en los docstrings
-de esas pruebas (ver DEF-01, issue #43): usan nombres descriptivos, y la etiqueta
-CP-XX queda reservada para los casos que este documento contabiliza.
+Tras integrar #15, #20 y las correcciones finales de #43/#47,
+`PATH=.venv/bin:$PATH pytest` recolecto 306 pruebas y termino con
+`306 passed in 24.26s`, sin fallas esperadas asociadas a defectos abiertos. Las pruebas
+restantes cubren modulos, flujos, CLI, observabilidad, datos demo y pruebas
+cruzadas sin contarse dentro del minimo CP-01 a CP-15. Esa separacion es
+deliberada: CP-32 a CP-34 se documentan como casos adicionales de observabilidad
+y PC/CX se mantienen como evidencia cruzada.
 
-Ejecucion completa registrada para #24: `pytest -v` termino con
-`302 passed, 1 xfailed in 17.64s`; los 15 casos CP-01 a CP-15 salieron PASSED y
-el unico XFAIL es
-`tests/cruzadas/test_integrante_1_revisa_integrante_2.py::test_PC20_04_RN18_entrega_debe_quedar_en_log_de_auditoria`.
-La salida literal esta en `docs/evidencias/pruebas/issue-24-pytest-v.txt`.
+Ejecucion historica registrada para #24: `pytest -v` termino con
+`302 passed y una falla esperada en 17.64s`. Esa falla esperada correspondia a DEF-02/#47
+y fue corregida en esta rama; la reejecucion final se registra en
+`docs/defectos.md`.
 
-La matriz de trazabilidad sigue pendiente: exige un criterio de aceptacion por
-RF que no forma parte de ninguno de los issues de pruebas.
+La matriz de trazabilidad ya fue completada en #23 y esta disponible en
+`docs/matriz-trazabilidad.md`.
