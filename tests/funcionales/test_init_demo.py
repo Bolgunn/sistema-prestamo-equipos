@@ -171,6 +171,21 @@ def test_init_demo_force_regenera_datos_existentes(ejecutar_cli, tmp_path: Path)
     }
 
 
+def test_init_demo_force_es_reproducible_byte_a_byte_y_coincide_con_versionados(
+    tmp_path: Path,
+) -> None:
+    datos_dir = tmp_path / "demo"
+    versionados_dir = Path(__file__).resolve().parents[2] / "datos" / "demo"
+
+    inicializar_datos_demo(datos_dir)
+    primera = _contenido_archivos(datos_dir)
+    inicializar_datos_demo(datos_dir, sobrescribir=True)
+    segunda = _contenido_archivos(datos_dir)
+
+    assert segunda == primera
+    assert segunda == _contenido_archivos(versionados_dir)
+
+
 def test_json_reales_de_datos_demo_son_validos_y_no_exponen_contrasenas() -> None:
     datos_demo = Path(__file__).resolve().parents[2] / "datos" / "demo"
     usuarios = repositorio_usuarios(datos_demo).listar()

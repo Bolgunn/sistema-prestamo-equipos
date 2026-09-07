@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
@@ -34,6 +34,19 @@ ID_SOLICITANTE_DEMO = "sol-demo"
 CLAVE_SOLICITANTE_DEMO = "DemoSolicitante2026!"
 ID_SOLICITANTE_ALTERNO_DEMO = "sol-demo-2"
 CLAVE_SOLICITANTE_ALTERNO_DEMO = "DemoSolicitante2026!"
+
+_HASH_ENCARGADO_DEMO = (
+    "pbkdf2_sha256$200000$000102030405060708090a0b0c0d0e0f"
+    "$fe248f964766aa3bb514bb0142b74111280ba19112e9b34cc69f3e5084d3e0f1"
+)
+_HASH_SOLICITANTE_DEMO = (
+    "pbkdf2_sha256$200000$101112131415161718191a1b1c1d1e1f"
+    "$4b31aba34cba68704d7ab7eea00603cfc6083da3424c178d211836dcd3261a53"
+)
+_HASH_SOLICITANTE_ALTERNO_DEMO = (
+    "pbkdf2_sha256$200000$202122232425262728292a2b2c2d2e2f"
+    "$f4cfff878244de9ecdd54f2397bcf213279985fff0a5d4c8669c08a866e21af5"
+)
 
 
 @dataclass(frozen=True)
@@ -99,13 +112,16 @@ def _generar_dataset(datos_dir: Path) -> None:
     repo_equipos = repositorio_equipos(datos_dir)
     repo_prestamos = repositorio_prestamos(datos_dir)
 
-    crear_encargado_inicial(
+    encargado = crear_encargado_inicial(
         ID_ENCARGADO_DEMO,
         "Encargada Demo",
         "enc.demo@usm.cl",
         CLAVE_ENCARGADO_DEMO,
         repositorio=repo_usuarios,
         logger=logger,
+    )
+    repo_usuarios.guardar(
+        replace(encargado, hash_contrasena=_HASH_ENCARGADO_DEMO)
     )
 
     auth = ServicioAuth(repo_usuarios, logger=logger)
@@ -121,19 +137,28 @@ def _generar_dataset(datos_dir: Path) -> None:
     prestamos = ServicioPrestamos(repo_prestamos, repo_equipos)
 
     auth.iniciar_sesion(ID_ENCARGADO_DEMO, CLAVE_ENCARGADO_DEMO)
-    usuarios.registrar_usuario(
+    solicitante = usuarios.registrar_usuario(
         ID_SOLICITANTE_DEMO,
         "Solicitante Demo",
         "sol.demo@usm.cl",
         Rol.SOLICITANTE,
         CLAVE_SOLICITANTE_DEMO,
     )
-    usuarios.registrar_usuario(
+    repo_usuarios.guardar(
+        replace(solicitante, hash_contrasena=_HASH_SOLICITANTE_DEMO)
+    )
+    solicitante_alterno = usuarios.registrar_usuario(
         ID_SOLICITANTE_ALTERNO_DEMO,
         "Solicitante Alterno Demo",
         "sol.demo2@usm.cl",
         Rol.SOLICITANTE,
         CLAVE_SOLICITANTE_ALTERNO_DEMO,
+    )
+    repo_usuarios.guardar(
+        replace(
+            solicitante_alterno,
+            hash_contrasena=_HASH_SOLICITANTE_ALTERNO_DEMO,
+        )
     )
     for codigo, nombre, tipo in (
         ("EQ-DEMO-01", "Notebook Dell Latitude", "Notebook"),
